@@ -16,7 +16,11 @@ Full FLEURS test splits, 2026-09-05.
 | `ggml.qwen3-asr-1.7b@q8_0` | 3.74 | 12.21 | 4.06 | 10-14x | 3.67 GB |
 | `ggml.qwen3-asr-1.7b@q4_k_m` | 4.29 | 16.95 | 5.03 | 12-20x | 2.36 GB |
 | `ggml.qwen3-asr-0.6b@q8_0` | 4.83 | 24.80 | 6.62 | 22-34x | 1.58 GB |
+| `mlx.qwen3-asr-1.7b@8bit` | 4.11 | 17.43 | 5.07 | 9-14x | 3.89-4.08 GB |
+| `mlx.qwen3-asr-1.7b@4bit` | 4.89 | 21.77 | 6.10 | 13-19x | 3.03-3.23 GB |
 | `ggml.qwen3-asr-0.6b@q4_k_m` | not measured | | | | |
+
+The MLX rows, measured 2026-09-07, are the same weights on a different runtime and are worse in every language - by 0.4 points in English and by five in Polish. They are not offered. They also carry the one long-recording caveat worth knowing about this family: its token budget is spent across a whole request, so a recording handed over in one piece loses its tail silently. `speech` cuts at five minutes for that reason.
 
 ## It is not a Polish model, whatever its language list says
 

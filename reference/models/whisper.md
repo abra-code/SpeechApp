@@ -14,7 +14,10 @@ Full FLEURS test splits, 2026-09-05.
 | row | en | pl | de | speed | memory |
 | --- | --- | --- | --- | --- | --- |
 | `ggml.whisper-large-v3-turbo@q8_0` | 4.97 | 5.81 | 5.07 | 12.7-17.1x | 1.13 GB |
+| `mlx.whisper-large-v3-turbo` | 4.92 | 5.82 | **4.54** | 8.1-11.7x | 3.61 GB |
 | `ggml.whisper-large-v3-turbo@q4_k_m` | not measured | | | | |
+
+The MLX build, measured 2026-09-07, is the only place in this project where an MLX row wins anything: 4.54 in German is half a point better than the ggml build and the best German Whisper measured here. It is not offered, because it gives up a third of the speed and three times the memory for that half point, and `ggml.qwen3-asr-1.7b@q8_0` reaches 4.06 in German anyway.
 
 Polish at 5.81 against Apple's 13.16 is a 56 percent relative improvement, and it is the strongest single result behind this product's central claim: that Polish users are badly served by what their Mac already does.
 

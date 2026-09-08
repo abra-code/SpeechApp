@@ -6,6 +6,8 @@ What is in here is a **starting reference point**, produced once, on one machine
 
 `measurements-2026-09-05.tsv` holds 44 cells: every catalog row that could be run, scored over the full FLEURS `en_us` (647 utterances), `pl_pl` (758) and `de_de` (862) test splits, 13,602 utterances in total.
 
+`measurements-mlx-2026-09-07.tsv` holds 13 more, the `mlx` rows, taken the same way against the same splits with the same scorer and instrument. They are kept separate because they are a later battery against a different runtime, and they are **measured but not offered**: every one is matched or beaten by a `ggml` row built from the same weights, at about a third of the memory, so stage 4B's gate failed and the MLX engine stays as a measurement instrument rather than something a user picks. The file says so at the top, and the numbers stay so the next run is a comparison.
+
 Each cell carries WER, CER, throughput as a multiple of real time, peak memory and load time, plus the machine, the OS and the date, because none of those numbers means anything without them.
 
 | | |
@@ -13,7 +15,7 @@ Each cell carries WER, CER, throughput as a multiple of real time, peak memory a
 | Machine | Apple M5, 24 GB |
 | macOS | 26.6.2 |
 | Toolchain | Swift 6.2, `speech` built `-c release` |
-| Engines | FluidAudio 0.15.6 (CoreML), transcribe.cpp 0.2.3 (ggml on Metal) |
+| Engines | FluidAudio 0.15.6 (CoreML), transcribe.cpp 0.2.3 (ggml on Metal), mlx-audio-swift 0.1.3 on mlx-swift 0.31.6 |
 | Corpus | FLEURS test splits, full |
 | Produced by | `speech eval --report` |
 
