@@ -1,0 +1,30 @@
+[
+  {
+    "type": "CommandGroup",
+    "properties": { "placement": "replacing", "placementTarget": "new" },
+    "children": [
+      {
+        "type": "Button",
+        "properties": {
+          "title": "New Window",
+          "actionID": "speech.new",
+          "keyboardShortcut": { "key": "n", "modifiers": ["command"] }
+        }
+      }
+    ]
+  },
+  {
+    "type": "CommandGroup",
+    "properties": { "placement": "replacing", "placementTarget": "open" },
+    "children": [
+      {
+        "type": "Button",
+        "properties": {
+          "title": "Open...",
+          "actionID": "speech.open",
+          "keyboardShortcut": { "key": "o", "modifiers": ["command"] }
+        }
+      }
+    ]
+  }
+]

@@ -1,6 +1,7 @@
 Speech.app/Contents/Frameworks
 Speech.app/Contents/MacOS
 Speech.app/Contents/Support
+Speech.app/Contents/Resources/Reference
 Speech.app/Contents/_CodeSignature
 .DS_Store
 Private

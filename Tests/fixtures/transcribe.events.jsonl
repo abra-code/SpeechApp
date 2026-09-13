@@ -1,0 +1,8 @@
+{"audio_seconds_done":0,"audio_seconds_total":4.4369375,"fraction":0,"t":0.0398845,"type":"progress"}
+{"file":"en_US","model":"apple.transcriber","phase":"listing","t":0.092866958,"type":"model.progress"}
+{"capabilities":{"batch":true,"live":true},"engine":"apple.transcriber","load_seconds":0.055362625,"locale":"en_US","model":"apple.transcriber","t":0.095391,"type":"engine.ready"}
+{"audio_seconds_done":4.4369375,"audio_seconds_total":4.4369375,"fraction":1,"t":0.282832208,"type":"progress"}
+{"confidence":0.95544446,"end":2.58,"id":0,"language":"en","start":0,"t":0.282864042,"text":" The quick brown fox jumps over the lazy dog.","type":"segment.final"}
+{"code":"future_thing","message":"an event type this app has never heard of","t":0.2829,"type":"future.event"}
+{"confidence":0.8318,"end":4.4369375,"id":1,"language":"en","start":2.64,"t":0.282915458,"text":"Speech recognition\ton a Mac.","type":"segment.final"}
+{"audio_seconds":4.4369375,"output":"/nonexistent/result.json","peak_memory_bytes":11174560,"peak_rss_bytes":29605888,"rtfx":15.669803495671264,"segments":2,"t":0.28315783299999997,"type":"done","wall_seconds":0.283152083}

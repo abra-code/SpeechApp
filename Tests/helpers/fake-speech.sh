@@ -1,0 +1,79 @@
+#!/bin/bash
+# fake-speech.sh - stands in for Contents/Support/speech under test (SPEECH_BIN). It records every
+# invocation, then answers the verbs the applet uses from fixtures, so no model loads and no
+# microphone opens.
+#
+#   FAKE_SPEECH_FIXTURES  directory holding catalog.json, transcribe.events.jsonl,
+#                         transcribe.result.json (required)
+#   FAKE_SPEECH_LOG       file each invocation's arguments are appended to, one line per call
+#   FAKE_SPEECH_MODE      transcribe behavior: ok (default), fail (an error event, exit 1), or
+#                         hang (one progress event, then wait to be signaled)
+#
+# In hang mode the process replaces itself with sleep under its own name (exec -a), so its argv
+# still starts with the SPEECH_BIN path. That is what the applet's argv check requires before it
+# signals a pid, and a fake that failed the check would make every stop test pass vacuously.
+
+log="${FAKE_SPEECH_LOG:-/dev/null}"
+fixtures="${FAKE_SPEECH_FIXTURES:-}"
+printf '%s\n' "$*" >> "$log"
+
+if [ -z "$fixtures" ]; then
+    printf 'fake-speech: FAKE_SPEECH_FIXTURES is not set\n' >&2
+    exit 2
+fi
+
+[ "$1" = --json ] && shift
+verb="$1"
+shift
+
+case "$verb" in
+    catalog)
+        /bin/cat "$fixtures/catalog.json"
+        exit 0
+        ;;
+    transcribe)
+        output=""
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --output) output="$2"; shift ;;
+            esac
+            shift
+        done
+        case "${FAKE_SPEECH_MODE:-ok}" in
+            fail)
+                printf '%s\n' '{"code":"unsupported_format","message":"cannot decode the recording","t":0.01,"type":"error"}'
+                printf 'speech transcribe: cannot decode the recording\n' >&2
+                exit 1
+                ;;
+            hang)
+                printf '%s\n' '{"audio_seconds_done":0,"audio_seconds_total":4.4,"fraction":0,"t":0.01,"type":"progress"}'
+                exec -a "$0" /bin/sleep 600
+                ;;
+            *)
+                /bin/cat "$fixtures/transcribe.events.jsonl"
+                [ -n "$output" ] && /bin/cp "$fixtures/transcribe.result.json" "$output"
+                exit 0
+                ;;
+        esac
+        ;;
+    export)
+        format=""
+        output=""
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --format) format="$2"; shift ;;
+                --output) output="$2"; shift ;;
+            esac
+            shift
+        done
+        if [ -z "$output" ]; then
+            printf 'fake-speech: export without --output\n' >&2
+            exit 2
+        fi
+        printf 'exported as %s\n' "$format" > "$output"
+        exit 0
+        ;;
+esac
+
+printf 'fake-speech: unhandled verb %s\n' "$verb" >&2
+exit 2

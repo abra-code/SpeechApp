@@ -1,0 +1,43 @@
+{
+  "catalog": { "builtin": "/nonexistent/speech-catalog", "user": "/nonexistent/Catalog", "user_exists": false },
+  "environment": { "tool": "speech 0.1.0", "macos": "26.6.2", "machine": "Apple M5" },
+  "machine": { "chip": "Apple M5", "macos": "26.6.2", "memory_bytes": 25769803776 },
+  "models_dir": "/nonexistent/Models",
+  "rows": [
+    {
+      "available": true, "capabilities": ["word_ts", "seg_ts", "vocab", "lang_hint"], "engine": "apple", "family": "apple",
+      "id": "apple.dictation", "installed": true, "label": "Apple dictation (built in)", "languages": ["de", "en", "pl"],
+      "minimum_macos": "26.0", "modes": ["batch", "live"], "precision": "system", "role": "transcriber", "state": "system_managed"
+    },
+    {
+      "available": true, "capabilities": ["word_ts", "seg_ts", "lang_hint"], "engine": "apple", "family": "apple",
+      "id": "apple.transcriber", "installed": true, "label": "Apple long-form (built in)", "languages": ["de", "en", "es"],
+      "minimum_macos": "26.0", "modes": ["batch", "live"], "precision": "system", "role": "transcriber", "state": "system_managed"
+    },
+    {
+      "available": true, "capabilities": ["word_ts", "seg_ts", "vocab", "lang_hint"], "engine": "fluid", "family": "parakeet",
+      "id": "fluid.parakeet-v3@int8", "installed": false, "label": "Parakeet v3 (int8)", "languages": ["en", "pl"],
+      "minimum_macos": "14.0", "modes": ["batch", "live"], "precision": "int8", "role": "transcriber", "state": "missing"
+    },
+    {
+      "available": false, "capabilities": ["seg_ts", "lang_id", "lang_hint"], "engine": "mlx", "family": "qwen3-asr",
+      "id": "mlx.qwen3-asr-1.7b@8bit", "installed": true, "label": "Qwen3-ASR 1.7B (MLX, 8-bit)", "languages": ["en", "zh"],
+      "minimum_macos": "15.0", "modes": ["batch"], "precision": "q8", "role": "transcriber", "state": "installed"
+    },
+    {
+      "available": true, "capabilities": [], "engine": "fluid", "family": "parakeet",
+      "id": "fluid.parakeet-ctc-110m", "installed": true, "label": "Parakeet CTC 110M (vocabulary spotter)", "languages": ["en"],
+      "minimum_macos": "14.0", "modes": [], "precision": "int8", "role": "helper", "state": "installed"
+    },
+    {
+      "available": true, "capabilities": ["seg_ts", "lang_id", "lang_hint"], "engine": "ggml", "family": "whisper",
+      "id": "ggml.whisper-large-v3-turbo@q8_0", "installed": true, "label": "Whisper large-v3-turbo (Q8_0)", "languages": ["en", "pl", "jw"],
+      "minimum_macos": "14.0", "modes": ["batch"], "precision": "q8_0", "role": "transcriber", "state": "installed"
+    },
+    {
+      "available": true, "capabilities": ["word_ts", "seg_ts", "lang_hint"], "engine": "ggml", "family": "nemotron",
+      "id": "ggml.nemotron-3.5-asr-streaming-0.6b@q8_0", "installed": true, "label": "Nemotron \"streaming\" (Q8_0)", "languages": ["en-US", "pl-PL"],
+      "minimum_macos": "14.0", "modes": ["batch", "live"], "precision": "q8_0", "role": "transcriber", "state": "installed"
+    }
+  ]
+}

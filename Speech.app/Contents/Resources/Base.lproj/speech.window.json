@@ -1,0 +1,182 @@
+{
+  "type": "VStack",
+  "properties": {
+    "spacing": 0,
+    "background": "background",
+    "frame": {
+      "minWidth": 760,
+      "minHeight": 480,
+      "idealWidth": 940,
+      "idealHeight": 640,
+      "maxWidth": "infinity",
+      "maxHeight": "infinity"
+    }
+  },
+  "children": [
+    {
+      "type": "TabView",
+      "id": 5,
+      "properties": {
+        "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
+      },
+      "children": [
+        {
+          "type": "Tab",
+          "properties": { "title": "Transcribe", "systemImage": "waveform" },
+          "content": {
+            "type": "VStack",
+            "properties": {
+              "spacing": 10,
+              "padding": 14,
+              "onDropTypes": ["public.file-url"],
+              "onDropActionID": "speech.drop",
+              "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
+            },
+            "children": [
+              {
+                "type": "HStack",
+                "properties": { "spacing": 8 },
+                "children": [
+                  { "type": "Image", "properties": { "systemName": "doc.badge.waveform", "foregroundStyle": "secondary" } },
+                  {
+                    "type": "Text",
+                    "id": 110,
+                    "properties": {
+                      "text": "Drop a recording here, or choose one.",
+                      "foregroundStyle": "secondary",
+                      "frame": { "maxWidth": "infinity", "alignment": "leading" }
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "id": 111,
+                    "properties": {
+                      "title": "Choose File...",
+                      "buttonStyle": "bordered",
+                      "actionID": "speech.open"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "HStack",
+                "properties": { "spacing": 8 },
+                "children": [
+                  { "type": "Text", "properties": { "text": "Model", "foregroundStyle": "secondary" } },
+                  {
+                    "type": "Picker",
+                    "id": 25,
+                    "properties": {
+                      "pickerStyle": "menu",
+                      "labelsHidden": true,
+                      "options": ["Loading..."],
+                      "actionID": "speech.model.changed",
+                      "frame": { "minWidth": 260, "idealWidth": 340 }
+                    }
+                  },
+                  { "type": "Text", "properties": { "text": "Language", "foregroundStyle": "secondary" } },
+                  {
+                    "type": "Picker",
+                    "id": 26,
+                    "properties": {
+                      "pickerStyle": "menu",
+                      "labelsHidden": true,
+                      "options": ["Automatic"],
+                      "actionID": "speech.language.changed",
+                      "frame": { "minWidth": 150, "idealWidth": 180 }
+                    }
+                  },
+                  { "type": "Spacer" },
+                  {
+                    "type": "Button",
+                    "id": 41,
+                    "properties": {
+                      "title": "Stop",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "actionID": "speech.stop"
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "id": 40,
+                    "properties": {
+                      "title": "Transcribe",
+                      "buttonStyle": "borderedProminent",
+                      "disabled": true,
+                      "keyboardShortcut": { "key": "return", "modifiers": ["command"] },
+                      "actionID": "speech.transcribe"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "TextEditor",
+                "id": 200,
+                "properties": {
+                  "readOnly": true,
+                  "placeholder": "The transcript appears here.",
+                  "font": { "size": 13, "design": "default" },
+                  "background": "background.secondary",
+                  "scrollContentBackground": "hidden",
+                  "cornerRadius": 8,
+                  "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
+                }
+              },
+              {
+                "type": "HStack",
+                "properties": { "spacing": 8 },
+                "children": [
+                  {
+                    "type": "Text",
+                    "id": 300,
+                    "properties": {
+                      "text": "Starting...",
+                      "font": "caption",
+                      "foregroundStyle": "secondary",
+                      "frame": { "maxWidth": "infinity", "alignment": "leading" }
+                    }
+                  },
+                  {
+                    "type": "Menu",
+                    "id": 50,
+                    "properties": { "title": "Export", "disabled": true, "frame": { "width": 110 } },
+                    "children": [
+                      { "type": "Button", "id": 51, "properties": { "title": "Plain Text (.txt)", "actionID": "speech.export.txt" } },
+                      { "type": "Button", "id": 52, "properties": { "title": "SRT Subtitles (.srt)", "actionID": "speech.export.srt" } },
+                      { "type": "Button", "id": 53, "properties": { "title": "WebVTT Subtitles (.vtt)", "actionID": "speech.export.vtt" } },
+                      { "type": "Button", "id": 54, "properties": { "title": "JSON with Timings (.json)", "actionID": "speech.export.json" } }
+                    ]
+                  },
+                  {
+                    "type": "Button",
+                    "id": 55,
+                    "properties": {
+                      "title": "Copy",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "actionID": "speech.copy"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "Tab",
+          "properties": { "title": "Benchmark", "systemImage": "gauge.with.dots.needle.33percent" },
+          "content": {
+            "type": "ContentUnavailableView",
+            "properties": {
+              "title": "Benchmarking",
+              "systemImage": "gauge.with.dots.needle.33percent",
+              "description": "Measuring models on this Mac, with standard test recordings and your own, arrives in a later update.",
+              "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

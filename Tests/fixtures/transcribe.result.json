@@ -1,0 +1,8 @@
+{
+  "language": "en-US",
+  "model": "apple.transcriber",
+  "segments": [
+    { "end": 2.58, "id": 0, "start": 0, "text": "The quick brown fox jumps over the lazy dog." },
+    { "end": 4.4369375, "id": 1, "start": 2.64, "text": "Speech recognition on a Mac." }
+  ]
+}
