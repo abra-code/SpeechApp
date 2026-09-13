@@ -1,6 +1,6 @@
-# lib.speech.sh - shared library for the Speech applet. Sourced by every handler and by the
-# window poller (speech.poll.sh). POSIX /bin/sh (macOS bash 3.2): validate with `sh -n`, never
-# `bash -n`.
+# lib.speech.sh - shared library for the Speech applet. Sourced by every handler, by the window
+# poller (speech.poll.sh) and by the live stdin holder (speech.live.stdin.sh). POSIX /bin/sh
+# (macOS bash 3.2): validate with `sh -n`, never `bash -n`.
 
 [ -n "${__SPEECH_LIB:-}" ] && return 0
 __SPEECH_LIB=1
@@ -29,11 +29,12 @@ US="$(printf '\037')"
 # bundle-relative path, so a variable is the only seam. Nothing sets these in normal use.
 #
 # Two environment namespaces share the SPEECH_ prefix and must not be treated as one set. The
-# ones read here (SPEECH_BIN, SPEECH_POLL_SCRIPT, SPEECH_APP_SUPPORT) are this applet's test
-# hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the speech binary's own
-# production configuration.
+# ones read here (SPEECH_BIN, SPEECH_POLL_SCRIPT, SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT)
+# are this applet's test hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the
+# speech binary's own production configuration.
 SPEECH_BIN="${SPEECH_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech}"
 POLL_SCRIPT="${SPEECH_POLL_SCRIPT:-$SCRIPTS_DIR/speech.poll.sh}"
+LIVE_STDIN_SCRIPT="${SPEECH_LIVE_STDIN_SCRIPT:-$SCRIPTS_DIR/speech.live.stdin.sh}"
 APP_SUPPORT="${SPEECH_APP_SUPPORT:-$HOME/Library/Application Support/Speech}"
 SESSIONS_DIR="$APP_SUPPORT/Sessions"
 SETTINGS_DIR="$APP_SUPPORT/Settings"
@@ -52,6 +53,7 @@ MODEL_PICKER=25
 LANGUAGE_PICKER=26
 TRANSCRIBE_BTN=40
 STOP_BTN=41
+RECORD_BTN=42
 EXPORT_MENU=50
 COPY_BTN=55
 SOURCE_TEXT=110
@@ -147,6 +149,13 @@ tsv_line_of() {   # $1 = file, $2 = first-column value
 # One column of the line of a TSV file whose first column equals a value.
 tsv_field() {   # $1 = file, $2 = first-column value, $3 = column number
     /usr/bin/awk -F'\t' -v key="$2" -v col="$3" '$1 == key { print $col; exit }' "$1" 2>/dev/null
+}
+
+# Returns 0 when a model in the spool's models.tsv can transcribe live (its modes include live).
+model_is_live() {   # $1 = spool, $2 = model id
+    local _modes="$(tsv_field "$1/models.tsv" "$2" 4)"
+    case ",$_modes," in *,live,*) return 0 ;; esac
+    return 1
 }
 
 # --- picker quiet window -----------------------------------------------------------------------
@@ -336,12 +345,15 @@ set_source() {   # $1 = spool, $2 = file path
 # middle of reading the previous run's events can never write into the new one.
 #
 # Files in a run directory:
+#   kind           file (speech transcribe) | live (speech stream)
+#   model, language the model id and language tag the run was started with
 #   state          running | stopping | done | failed | stopped
 #   speech.pid     the speech process
 #   events.jsonl   its stdout, one JSON event per line; stderr.log, its stderr
 #   events.lines   how many complete event lines the poller has consumed
 #   segments.tsv   id <TAB> kind <TAB> text, sorted by id - the transcript's source of truth
-#   transcript.txt the rendered transcript; result.json, the finished transcript from speech
+#   transcript.txt the rendered transcript; result.json, the finished transcript as JSON
+#   stdin.fifo     a live run's stdin; stop.request, written by Stop for the stdin holder
 #   summary.txt, error.txt, warnings.txt, reflected
 
 current_run_dir() {   # $1 = spool; prints the run directory, empty when there is none
@@ -409,6 +421,49 @@ spawn_transcribe() {   # $1 = run dir, $2 = file, $3 = model id, $4 = language t
     printf '%s' "$!"
 }
 
+# Start `speech stream` on the default microphone, in the background, and the process that holds
+# its stdin (speech.live.stdin.sh). Prints the speech pid; prints nothing when the FIFO cannot be
+# made.
+#
+# speech stream stops tidily on "q" and Return, or at end of input. Its stdin is a FIFO in the run
+# directory whose only writer is the holder, which sends "q" when Stop asks and closes the FIFO
+# when the window or the app goes away - so the session ends even when nothing is left to say so.
+# --parent-pid cannot serve: speech's parent is the handler that started it, which exits at once.
+#
+# The background shell opens the FIFO for reading before it becomes speech, and that open waits
+# for the holder's write end, so neither side can run ahead of the other.
+spawn_stream() {   # $1 = run dir, $2 = model id, $3 = language tag or auto
+    /usr/bin/mkfifo "$1/stdin.fifo"
+    local _fifo_status=$?
+    [ "$_fifo_status" -eq 0 ] || return 1
+    if [ "$3" = auto ] || [ -z "$3" ]; then
+        "$SPEECH_BIN" --json stream --model "$2" \
+            < "$1/stdin.fifo" > "$1/events.jsonl" 2> "$1/stderr.log" &
+    else
+        "$SPEECH_BIN" --json stream --model "$2" --language "$3" \
+            < "$1/stdin.fifo" > "$1/events.jsonl" 2> "$1/stderr.log" &
+    fi
+    local _pid=$!
+    /bin/sh "$LIVE_STDIN_SCRIPT" "$1" "$_pid" "${OMC_APP_PROCESS_ID:-}" < /dev/null > /dev/null 2>&1 &
+    printf '%s' "$_pid"
+}
+
+# Write a live session's transcript as result.json, in the shape `speech transcribe --format json`
+# writes, so Export treats a live session like any other. Built from the session's own events by
+# speech.live-result.jq.
+build_live_result() {   # $1 = run dir
+    local _language="$(read_state "$1/language")"
+    [ "$_language" = auto ] && _language=""
+    "$jq" -s --arg model "$(read_state "$1/model")" --arg language "$_language" \
+        -f "$SCRIPTS_DIR/speech.live-result.jq" "$1/events.jsonl" > "$1/result.json.tmp" 2>/dev/null
+    local _jq_status=$?
+    if [ "$_jq_status" -ne 0 ]; then
+        /bin/rm -f "$1/result.json.tmp"
+        return 1
+    fi
+    /bin/mv -f "$1/result.json.tmp" "$1/result.json"
+}
+
 # --- reading a run's events --------------------------------------------------------------------
 
 # A duration in seconds as "4.4 s" or "2 min 05 s".
@@ -457,6 +512,7 @@ process_events() {   # $1 = spool
         done < "$_run/events.batch"
     fi
 
+    local _kind="$(read_state "$_run/kind")"
     local _name="$(/usr/bin/basename "$(read_state "$1/source.path")")"
     local _status=""
     : > "$_run/segments.new"
@@ -478,7 +534,11 @@ process_events() {   # $1 = spool
                 esac
                 ;;
             engine.ready)
-                _status="Transcribing $_name..."
+                if [ "$_kind" = live ]; then
+                    _status="Recording. Speak now."
+                else
+                    _status="Transcribing $_name..."
+                fi
                 ;;
             warning)
                 printf '%s\n' "$_message" >> "$_run/warnings.txt"
@@ -488,7 +548,12 @@ process_events() {   # $1 = spool
                 write_state "$_run/state" failed
                 ;;
             done)
-                write_state "$_run/summary.txt" "$_segments segments, $(format_seconds "$_audio") of audio in $(format_seconds "$_wall") (${_rtfx}x real time)"
+                if [ "$_kind" = live ]; then
+                    # A live session runs at the speaker's pace, so a speed figure means nothing.
+                    write_state "$_run/summary.txt" "$_segments segments, $(format_seconds "$_audio") of audio"
+                else
+                    write_state "$_run/summary.txt" "$_segments segments, $(format_seconds "$_audio") of audio in $(format_seconds "$_wall") (${_rtfx}x real time)"
+                fi
                 # A stop that arrives after the work finished still leaves a finished transcript.
                 [ -s "$_run/error.txt" ] || write_state "$_run/state" done
                 ;;
@@ -500,27 +565,37 @@ process_events() {   # $1 = spool
     # Only the last status of the batch is worth showing.
     [ -n "$_status" ] && set_status "$_status"
 
-    if [ ! -s "$_run/segments.new" ]; then
-        /bin/rm -f "$_run/segments.new"
-        return 1
+    local _merged=1
+    if [ -s "$_run/segments.new" ]; then
+        # The last row seen for an id wins, so a final replaces its partial and a refinement
+        # replaces its final, whether they arrived in this batch or an earlier one.
+        /bin/cat "$_run/segments.tsv" "$_run/segments.new" 2>/dev/null \
+            | /usr/bin/awk -F'\t' '$1 ~ /^[0-9]+$/ { row[$1] = $0 } END { for (id in row) print row[id] }' \
+            | LC_ALL=C /usr/bin/sort -t "$TAB" -k1,1n > "$_run/segments.tsv.tmp"
+        /bin/mv -f "$_run/segments.tsv.tmp" "$_run/segments.tsv"
+        _merged=0
     fi
-    # The last row seen for an id wins, so a final replaces its partial and a refinement replaces
-    # its final, whether they arrived in this batch or an earlier one.
-    /bin/cat "$_run/segments.tsv" "$_run/segments.new" 2>/dev/null \
-        | /usr/bin/awk -F'\t' '$1 ~ /^[0-9]+$/ { row[$1] = $0 } END { for (id in row) print row[id] }' \
-        | LC_ALL=C /usr/bin/sort -t "$TAB" -k1,1n > "$_run/segments.tsv.tmp"
-    /bin/mv -f "$_run/segments.tsv.tmp" "$_run/segments.tsv"
     /bin/rm -f "$_run/segments.new"
-    return 0
+
+    # A live session has no --output of its own; its JSON transcript is built once it is done.
+    if [ "$_kind" = live ] && [ "$(read_state "$_run/state")" = done ] && [ ! -f "$_run/result.json" ]; then
+        build_live_result "$_run"
+    fi
+    return "$_merged"
 }
 
 # Rebuild the transcript from the segment table and push it into the window: one segment per
-# line, in id order, with the leading space some engines put before a segment trimmed.
+# line, in id order, with the leading space some engines put before a segment trimmed. A partial
+# segment - words a live session may still revise - ends in " ...".
 render_transcript() {   # $1 = spool
     local _run="$(current_run_dir "$1")"
     [ -n "$_run" ] || return 0
-    /usr/bin/awk -F'\t' '{ text = $3; sub(/^ +/, "", text); sub(/ +$/, "", text); if (text != "") print text }' \
-        "$_run/segments.tsv" > "$_run/transcript.txt" 2>/dev/null
+    /usr/bin/awk -F'\t' '{
+        text = $3; sub(/^ +/, "", text); sub(/ +$/, "", text)
+        if (text == "") next
+        if ($2 == "partial") text = text " ..."
+        print text
+    }' "$_run/segments.tsv" > "$_run/transcript.txt" 2>/dev/null
     /bin/cat "$_run/transcript.txt" | "$dialog" "$window_uuid" "$TRANSCRIPT_EDITOR" omc_set_value_from_stdin plain
 }
 
@@ -600,6 +675,13 @@ refresh_actions() {   # $1 = spool
     case "$_state" in running|stopping) _active=1 ;; esac
     local _can_transcribe=0
     [ "$_active" = 0 ] && [ -n "$_source" ] && [ -f "$_source" ] && [ -n "$_model" ] && _can_transcribe=1
+    local _live_model=1
+    if [ -n "$_model" ]; then
+        model_is_live "$_spool" "$_model"
+        _live_model=$?
+    fi
+    local _can_record=0
+    [ "$_active" = 0 ] && [ -n "$_model" ] && [ "$_live_model" = 0 ] && _can_record=1
     local _can_stop=0
     [ "$_state" = running ] && _can_stop=1
     local _can_export=0
@@ -611,11 +693,12 @@ refresh_actions() {   # $1 = spool
     local _can_pick=0
     [ "$_active" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
 
-    local _signature="$_can_transcribe$_can_stop$_can_export$_can_copy$_can_choose$_can_pick|$_models_ready|$_state|$_source|$_model"
+    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_choose$_can_pick|$_models_ready|$_state|$_source|$_model"
     [ "$_signature" = "$(read_state "$_spool/actions.sig")" ] && return 0
     write_state "$_spool/actions.sig" "$_signature"
 
     set_enabled "$TRANSCRIBE_BTN" "$_can_transcribe"
+    set_enabled "$RECORD_BTN" "$_can_record"
     set_enabled "$STOP_BTN" "$_can_stop"
     set_enabled "$EXPORT_MENU" "$_can_export"
     set_enabled "$COPY_BTN" "$_can_copy"
@@ -626,13 +709,15 @@ refresh_actions() {   # $1 = spool
     # With no run to report on, the status line says what the window is waiting for.
     [ -z "$_run" ] || return 0
     [ "$_models_ready" = 1 ] || return 0
+    local _label="$(tsv_field "$_spool/models.tsv" "$_model" 2)"
     if [ -z "$_model" ]; then
         set_status "No speech model can run on this Mac yet."
-    elif [ -z "$_source" ]; then
-        set_status "Choose or drop a recording to transcribe."
-    else
-        local _label="$(tsv_field "$_spool/models.tsv" "$_model" 2)"
+    elif [ -n "$_source" ]; then
         set_status "Ready to transcribe $(/usr/bin/basename "$_source") with $_label."
+    elif [ "$_can_record" = 1 ]; then
+        set_status "Choose or drop a recording to transcribe, or press Record to transcribe live."
+    else
+        set_status "Choose or drop a recording to transcribe. $_label cannot transcribe live."
     fi
 }
 

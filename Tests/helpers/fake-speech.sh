@@ -56,6 +56,26 @@ case "$verb" in
                 ;;
         esac
         ;;
+    stream)
+        # A live session: one finished utterance and one still being spoken, then wait for stdin
+        # to say stop - "q" on a line, or end of input. How it was told is written beside the log,
+        # because the two stop paths are what the tests are about.
+        printf '%s\n' '{"engine":"apple.transcriber","load_seconds":0.1,"model":"apple.transcriber","t":0.1,"type":"engine.ready"}'
+        printf '%s\n' '{"end":1,"id":0,"start":0,"t":0.5,"text":"hello","type":"segment.partial"}'
+        printf '%s\n' '{"end":1.5,"id":0,"start":0,"t":1.0,"text":"Hello world.","type":"segment.final","words":[{"end":0.6,"start":0,"text":"Hello"},{"end":1.5,"start":0.6,"text":"world."}]}'
+        printf '%s\n' '{"end":2,"id":1,"start":1.6,"t":1.2,"text":"and more","type":"segment.partial"}'
+        how="eof"
+        while IFS= read -r line; do
+            if [ "$line" = q ]; then
+                how="q"
+                break
+            fi
+        done
+        printf '%s\n' '{"end":2.4,"id":1,"start":1.6,"t":2.0,"text":"And more.","type":"segment.final"}'
+        printf '%s\n' '{"audio_seconds":2.4,"rtfx":1,"segments":2,"t":2.1,"type":"done","wall_seconds":2.4}'
+        printf '%s\n' "$how" > "$log.stop"
+        exit 0
+        ;;
     export)
         format=""
         output=""

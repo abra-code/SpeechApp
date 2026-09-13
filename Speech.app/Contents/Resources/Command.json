@@ -74,6 +74,11 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.record",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.stop",
       "EXECUTION_MODE": "exe_script_file"
     },
