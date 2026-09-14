@@ -9,6 +9,11 @@
 #   FAKE_SPEECH_MODE       transcribe behavior: ok (default), fail (an error event, exit 1), or
 #                          hang (one progress event, then wait to be signaled)
 #   FAKE_SPEECH_FAIL_FILE  a recording that fails as in fail mode while every other one succeeds
+#   FAKE_SPEECH_CATALOG    a writable copy of catalog.json to answer `catalog` from instead;
+#                          `models download` and `models delete` then change the row's state in it
+#   FAKE_SPEECH_DOWNLOAD   `models download` behavior: ok (default), fail (an error event, exit 1),
+#                          or hang (one progress event, then wait to be signaled)
+#   FAKE_SPEECH_DELETE     `models delete` behavior: ok (default) or fail (a message, exit 1)
 #
 # In hang mode the process replaces itself with sleep under its own name (exec -a), so its argv
 # still starts with the SPEECH_BIN path. That is what the applet's argv check requires before it
@@ -29,8 +34,53 @@ shift
 
 case "$verb" in
     catalog)
-        /bin/cat "$fixtures/catalog.json"
+        /bin/cat "${FAKE_SPEECH_CATALOG:-$fixtures/catalog.json}"
         exit 0
+        ;;
+    models)
+        sub="$1"
+        id="$2"
+        catalog="${FAKE_SPEECH_CATALOG:-}"
+        case "$sub" in
+            download)
+                case "${FAKE_SPEECH_DOWNLOAD:-ok}" in
+                    fail)
+                        printf '{"model":"%s","phase":"listing","t":0.01,"type":"model.progress"}\n' "$id"
+                        printf '%s\n' '{"code":"runtime","message":"The network connection was lost.","t":0.02,"type":"error"}'
+                        printf 'speech models download: The network connection was lost.\n' >&2
+                        exit 1
+                        ;;
+                    hang)
+                        printf '{"bytes_done":120000000,"bytes_total":480000000,"file":"model.bin","fraction":0.25,"model":"%s","phase":"downloading","t":0.1,"type":"model.progress"}\n' "$id"
+                        exec -a "$0" /bin/sleep 600
+                        ;;
+                esac
+                printf '{"model":"%s","phase":"listing","t":0.01,"type":"model.progress"}\n' "$id"
+                printf '{"bytes_done":480000000,"bytes_total":480000000,"file":"model.bin","fraction":1,"model":"%s","phase":"downloading","t":0.2,"type":"model.progress"}\n' "$id"
+                if [ -n "$catalog" ]; then
+                    /usr/bin/jq --arg id "$id" '(.rows[] | select(.id == $id)) |= (.state = "installed" | .installed = true | .installed_bytes = (.size_bytes // 1000))' "$catalog" > "$catalog.tmp"
+                    /bin/mv -f "$catalog.tmp" "$catalog"
+                fi
+                printf '{"bytes":1000,"model":"%s","path":"/nonexistent/Models/%s","t":0.3,"type":"model.installed"}\n' "$id" "$id"
+                exit 0
+                ;;
+            delete)
+                if [ "${FAKE_SPEECH_DELETE:-ok}" = fail ]; then
+                    printf 'error: cannot remove the model files: permission denied\n' >&2
+                    exit 1
+                fi
+                if [ -n "$catalog" ]; then
+                    /usr/bin/jq --arg id "$id" '(.rows[] | select(.id == $id)) |= (.state = "missing" | .installed = false | del(.installed_bytes))' "$catalog" > "$catalog.tmp"
+                    /bin/mv -f "$catalog.tmp" "$catalog"
+                fi
+                printf '{"model":"%s","path":"/nonexistent/Models/%s","state":"missing","t":0.01,"type":"model.entry"}\n' "$id" "$id"
+                exit 0
+                ;;
+            status)
+                printf '{"model":"%s","path":"/nonexistent/Models/%s","state":"installed","t":0.01,"type":"model.entry"}\n' "$id" "$id"
+                exit 0
+                ;;
+        esac
         ;;
     transcribe)
         input="$1"

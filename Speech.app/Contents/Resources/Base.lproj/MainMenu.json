@@ -26,5 +26,19 @@
         }
       }
     ]
+  },
+  {
+    "type": "CommandMenu",
+    "properties": { "name": "Models" },
+    "children": [
+      {
+        "type": "Button",
+        "properties": {
+          "title": "Manage Models...",
+          "actionID": "speech.models",
+          "keyboardShortcut": { "key": "m", "modifiers": ["command", "shift"] }
+        }
+      }
+    ]
   }
 ]

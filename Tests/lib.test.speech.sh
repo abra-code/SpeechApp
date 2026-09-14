@@ -14,6 +14,7 @@ fi
 # tree.
 SPEECH_BIN="$OMCTEST_TESTS/helpers/fake-speech.sh"
 SPEECH_POLL_SCRIPT="$OMCTEST_TESTS/helpers/record-poller.sh"
+SPEECH_MODELS_POLL_SCRIPT="$OMCTEST_TESTS/helpers/record-poller.sh"
 SPEECH_APP_SUPPORT="$OMCTEST_HOME/Library/Application Support/Speech"
 SPEECH_RECORDINGS_DIR="$OMCTEST_WORK/Speech Recordings"
 FAKE_SPEECH_FIXTURES="$OMCTEST_FIXTURES"
@@ -22,7 +23,7 @@ SPEECH_TEST_RECORD_DIR="$OMCTEST_WORK"
 # The language picker falls back to the locale's language; pin it so the suite does not depend
 # on the machine it runs on.
 LANG="en_US.UTF-8"
-export SPEECH_BIN SPEECH_POLL_SCRIPT SPEECH_APP_SUPPORT FAKE_SPEECH_FIXTURES FAKE_SPEECH_LOG SPEECH_TEST_RECORD_DIR LANG
+export SPEECH_BIN SPEECH_POLL_SCRIPT SPEECH_MODELS_POLL_SCRIPT SPEECH_APP_SUPPORT FAKE_SPEECH_FIXTURES FAKE_SPEECH_LOG SPEECH_TEST_RECORD_DIR LANG
 
 if [ -z "$OMC_ACTIONUI_WINDOW_UUID" ]; then
     printf 'lib.test.speech.sh: no window uuid in the test shell\n' >&2
@@ -53,6 +54,12 @@ item_dir() { printf '%s/items/%s' "$(rec_pane)" "$(/sbin/md5 -q -s "$1")"; }
 
 # Call a lib.speech.sh function in a subshell, the way the poller calls it. The subshell keeps the
 # library's state out of the test file and stops a function that exits from ending the suite.
+# The same for the Models window's library.
+models_call() {
+    ( . "$OMCTEST_APP/Contents/Resources/Scripts/lib.speech.models.sh" >/dev/null 2>&1
+      "$@" )
+}
+
 lib_call() {
     ( . "$OMCTEST_APP/Contents/Resources/Scripts/lib.speech.sh" >/dev/null 2>&1
       "$@" )
@@ -106,7 +113,7 @@ reset_state() {
     /bin/rm -rf "$SPEECH_APP_SUPPORT"
     /bin/rm -f "$FAKE_SPEECH_LOG" "$SPEECH_TEST_RECORD_DIR/poller.args"
     "$OMC_OMC_SUPPORT_PATH/pasteboard" SPEECH_OPEN_PATH set ""
-    unset FAKE_SPEECH_MODE FAKE_SPEECH_FAIL_FILE
+    unset FAKE_SPEECH_MODE FAKE_SPEECH_FAIL_FILE FAKE_SPEECH_CATALOG FAKE_SPEECH_DOWNLOAD FAKE_SPEECH_DELETE
     omc_reset_controls
 }
 

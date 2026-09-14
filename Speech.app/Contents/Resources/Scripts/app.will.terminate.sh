@@ -6,10 +6,14 @@
 
 # One process listing, matched literally. pgrep -f takes a regular expression, and a bundle
 # path with a parenthesis in it ("Speech (1)/Speech.app") matched nothing, so nothing was stopped.
+#
+# A download's speech process is stopped like the rest; its worker then records the download as
+# stopped and exits, and the bytes already on disk let the next download resume.
 /bin/ps -axo pid=,args= 2>/dev/null | while read -r pid args; do
     case "$args" in
         "$SPEECH_BIN"|"$SPEECH_BIN "*) /bin/kill -TERM "$pid" 2>/dev/null ;;
         "/bin/sh $POLL_SCRIPT "*) /bin/kill -TERM "$pid" 2>/dev/null ;;
+        "/bin/sh $MODELS_POLL_SCRIPT "*) /bin/kill -TERM "$pid" 2>/dev/null ;;
     esac
 done
 

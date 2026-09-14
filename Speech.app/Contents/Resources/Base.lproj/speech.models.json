@@ -1,0 +1,76 @@
+{
+  "type": "VStack",
+  "properties": {
+    "spacing": 12,
+    "padding": 20,
+    "alignment": "leading",
+    "frame": {
+      "minWidth": 560,
+      "minHeight": 440,
+      "idealWidth": 660,
+      "idealHeight": 700,
+      "maxWidth": "infinity",
+      "maxHeight": "infinity"
+    }
+  },
+  "children": [
+    { "type": "Text", "properties": { "text": "Models", "font": "title2" } },
+    {
+      "type": "Text",
+      "properties": {
+        "text": "Download a model to transcribe with it, or delete one to free the space. Every model runs entirely on this Mac. The information button shows what a model family measured on one test Mac - a starting point, not a promise for yours.",
+        "font": "callout",
+        "foregroundStyle": "secondary"
+      }
+    },
+    {
+      "type": "ScrollView",
+      "properties": { "frame": { "maxWidth": "infinity", "maxHeight": "infinity" } },
+      "content": {
+        "type": "VStack",
+        "properties": { "spacing": 16, "alignment": "leading", "frame": { "maxWidth": "infinity" } },
+        "children": [
+          {
+            "type": "VStack",
+            "id": 1100,
+            "properties": { "hidden": true, "spacing": 8, "alignment": "leading", "frame": { "maxWidth": "infinity" } },
+            "children": [
+              { "type": "Text", "properties": { "text": "Built into macOS", "font": "headline", "foregroundStyle": "secondary" } },
+              { "type": "Text", "properties": { "text": "Apple's own speech recognition. macOS installs and updates it.", "font": "caption", "foregroundStyle": "secondary" } },
+              { "type": "VStack", "id": 1102, "properties": { "spacing": 8, "alignment": "leading", "frame": { "maxWidth": "infinity" } }, "children": [] }
+            ]
+          },
+          {
+            "type": "VStack",
+            "id": 1200,
+            "properties": { "hidden": true, "spacing": 8, "alignment": "leading", "frame": { "maxWidth": "infinity" } },
+            "children": [
+              { "type": "Text", "properties": { "text": "Downloaded", "font": "headline", "foregroundStyle": "secondary" } },
+              { "type": "Text", "properties": { "text": "On this Mac and ready to use.", "font": "caption", "foregroundStyle": "secondary" } },
+              { "type": "VStack", "id": 1202, "properties": { "spacing": 8, "alignment": "leading", "frame": { "maxWidth": "infinity" } }, "children": [] }
+            ]
+          },
+          {
+            "type": "VStack",
+            "id": 1300,
+            "properties": { "hidden": true, "spacing": 8, "alignment": "leading", "frame": { "maxWidth": "infinity" } },
+            "children": [
+              { "type": "Text", "properties": { "text": "Available to download", "font": "headline", "foregroundStyle": "secondary" } },
+              { "type": "Text", "properties": { "text": "The size shown is what the download takes on disk.", "font": "caption", "foregroundStyle": "secondary" } },
+              { "type": "VStack", "id": 1302, "properties": { "spacing": 8, "alignment": "leading", "frame": { "maxWidth": "infinity" } }, "children": [] }
+            ]
+          }
+        ]
+      }
+    },
+    { "type": "Divider" },
+    {
+      "type": "HStack",
+      "properties": { "spacing": 8, "frame": { "maxWidth": "infinity" } },
+      "children": [
+        { "type": "Text", "id": 910, "properties": { "text": "", "font": "caption", "foregroundStyle": "secondary", "frame": { "maxWidth": "infinity", "alignment": "leading" } } },
+        { "type": "Button", "id": 920, "properties": { "title": "Done", "buttonStyle": "borderedProminent", "keyboardShortcut": { "key": "escape" }, "actionID": "speech.models.done" } }
+      ]
+    }
+  ]
+}

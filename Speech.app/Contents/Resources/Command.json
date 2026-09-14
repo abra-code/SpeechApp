@@ -219,6 +219,67 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.models",
+      "EXECUTION_MODE": "exe_script_file",
+      "ACTIONUI_WINDOW": {
+        "JSON_NAME": "speech.models",
+        "WINDOW_TITLE": "Models",
+        "IS_BLOCKING": false,
+        "INIT_SUBCOMMAND_ID": "speech.models.init",
+        "END_CANCEL_SUBCOMMAND_ID": "speech.models.cancel"
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.init",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.download",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_TRIGGER_VIEW_ID": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.delete",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_TRIGGER_VIEW_ID": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.delete.confirm",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.info",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_TRIGGER_VIEW_ID": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.info.close",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.done",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.cancel",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "app.will.terminate",
       "EXECUTION_MODE": "exe_script_file",
       "WAIT_FOR_TASK_COMPLETION": true

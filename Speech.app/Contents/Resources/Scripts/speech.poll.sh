@@ -4,7 +4,8 @@
 #   args: <window_uuid> <spool_dir>
 #
 # The first thing it does is read the catalog, so the window can appear before that work is
-# done. After that, each tick it serves both tabs: it reads the current run's new events into the
+# done, and it reads it again whenever a model is downloaded or deleted (reload_models_if_changed).
+# Each tick it also serves both tabs: it reads the current run's new events into the
 # segment table, re-renders the transcript when the table changed, settles a run whose process
 # has exited, moves a batch of recordings on to the next one, and brings every control's enabled
 # state in line with the spool (poll_live and poll_recordings in lib.speech.sh).
@@ -19,6 +20,9 @@ spool="$2"
 [ -n "$window_uuid" ] && [ -d "$spool" ] || exit 0
 app_pid="${OMC_APP_PROCESS_ID:-}"
 
+# The value of models.changed is taken before the catalog is read, so a download that finishes
+# during the read still brings a second one.
+write_state "$spool/models.seen" "$(models_stamp)"
 load_models "$spool"
 load_status=$?
 if [ "$load_status" -ne 0 ]; then
@@ -41,6 +45,7 @@ while [ -d "$spool" ]; do
         app_status=$?
         [ "$app_status" -eq 0 ] || break
     fi
+    reload_models_if_changed "$spool"
     poll_live "$spool"
     poll_recordings "$spool"
     /bin/sleep 0.5

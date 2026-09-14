@@ -17,27 +17,38 @@
     {
       "available": true, "capabilities": ["word_ts", "seg_ts", "vocab", "lang_hint"], "engine": "fluid", "family": "parakeet",
       "id": "fluid.parakeet-v3@int8", "installed": false, "label": "Parakeet v3 (int8)", "languages": ["en", "pl"],
-      "minimum_macos": "14.0", "modes": ["batch", "live"], "precision": "int8", "role": "transcriber", "state": "missing"
+      "minimum_macos": "14.0", "modes": ["batch", "live"], "precision": "int8", "role": "transcriber", "state": "missing",
+      "size_bytes": 483257242, "source": "FluidInference/parakeet-tdt-0.6b-v3-coreml"
     },
     {
       "available": false, "capabilities": ["seg_ts", "lang_id", "lang_hint"], "engine": "mlx", "family": "qwen3-asr",
       "id": "mlx.qwen3-asr-1.7b@8bit", "installed": true, "label": "Qwen3-ASR 1.7B (MLX, 8-bit)", "languages": ["en", "zh"],
-      "minimum_macos": "15.0", "modes": ["batch"], "precision": "q8", "role": "transcriber", "state": "installed"
+      "minimum_macos": "15.0", "modes": ["batch"], "precision": "q8", "role": "transcriber", "state": "installed",
+      "installed_bytes": 2467856503, "size_bytes": 2467856503
     },
     {
       "available": true, "capabilities": [], "engine": "fluid", "family": "parakeet",
       "id": "fluid.parakeet-ctc-110m", "installed": true, "label": "Parakeet CTC 110M (vocabulary spotter)", "languages": ["en"],
-      "minimum_macos": "14.0", "modes": [], "precision": "int8", "role": "helper", "state": "installed"
+      "minimum_macos": "14.0", "modes": [], "precision": "int8", "role": "helper", "state": "installed",
+      "installed_bytes": 102803869, "size_bytes": 102803869
     },
     {
       "available": true, "capabilities": ["seg_ts", "lang_id", "lang_hint"], "engine": "ggml", "family": "whisper",
       "id": "ggml.whisper-large-v3-turbo@q8_0", "installed": true, "label": "Whisper large-v3-turbo (Q8_0)", "languages": ["en", "pl", "jw"],
-      "minimum_macos": "14.0", "modes": ["batch"], "precision": "q8_0", "role": "transcriber", "state": "installed"
+      "minimum_macos": "14.0", "modes": ["batch"], "precision": "q8_0", "role": "transcriber", "state": "installed",
+      "installed_bytes": 886381760, "size_bytes": 886381760, "source": "ggml-org/whisper-large-v3-turbo", "params_m": 809
     },
     {
       "available": true, "capabilities": ["word_ts", "seg_ts", "lang_hint"], "engine": "ggml", "family": "nemotron",
       "id": "ggml.nemotron-3.5-asr-streaming-0.6b@q8_0", "installed": true, "label": "Nemotron \"streaming\" (Q8_0)", "languages": ["en-US", "pl-PL"],
-      "minimum_macos": "14.0", "modes": ["batch", "live"], "precision": "q8_0", "role": "transcriber", "state": "installed"
+      "minimum_macos": "14.0", "modes": ["batch", "live"], "precision": "q8_0", "role": "transcriber", "state": "installed",
+      "installed_bytes": 751094240, "size_bytes": 751094240
+    },
+    {
+      "available": true, "capabilities": ["lang_hint"], "engine": "ggml", "family": "canary",
+      "id": "ggml.canary-1b-v2@q8_0", "installed": false, "label": "Canary 1B v2 (Q8_0)", "languages": ["en", "pl"],
+      "minimum_macos": "15.0", "modes": ["batch"], "precision": "q8_0", "role": "transcriber", "state": "partial",
+      "installed_bytes": 300000000, "size_bytes": 1144290016, "source": "handy-computer/canary-1b-v2-gguf"
     }
   ]
 }

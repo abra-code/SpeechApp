@@ -35,17 +35,23 @@ APPLE_LOGO="$(printf '\357\243\277')"
 #
 # Two environment namespaces share the SPEECH_ prefix and must not be treated as one set. The
 # ones read here (SPEECH_BIN, SPEECH_FINGERPRINT_BIN, SPEECH_POLL_SCRIPT,
-# SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT, SPEECH_RECORDINGS_DIR) are this applet's test
-# hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the speech binary's own
-# production configuration.
+# SPEECH_MODELS_POLL_SCRIPT, SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT, SPEECH_RECORDINGS_DIR)
+# are this applet's test hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the
+# speech binary's own production configuration.
 SPEECH_BIN="${SPEECH_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech}"
 FINGERPRINT_BIN="${SPEECH_FINGERPRINT_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/fingerprint}"
 POLL_SCRIPT="${SPEECH_POLL_SCRIPT:-$SCRIPTS_DIR/speech.poll.sh}"
+MODELS_POLL_SCRIPT="${SPEECH_MODELS_POLL_SCRIPT:-$SCRIPTS_DIR/speech.models.poll.sh}"
 LIVE_STDIN_SCRIPT="${SPEECH_LIVE_STDIN_SCRIPT:-$SCRIPTS_DIR/speech.live.stdin.sh}"
 APP_SUPPORT="${SPEECH_APP_SUPPORT:-$HOME/Library/Application Support/Speech}"
 RECORDINGS_DIR="${SPEECH_RECORDINGS_DIR:-$HOME/Documents/Speech Recordings}"
 SESSIONS_DIR="$APP_SUPPORT/Sessions"
 SETTINGS_DIR="$APP_SUPPORT/Settings"
+# A download runs speech under a worker of its own, which a test runs for real with the fake speech.
+DOWNLOAD_WORKER_SCRIPT="$SCRIPTS_DIR/speech.download.worker.sh"
+DOWNLOADS_DIR="$APP_SUPPORT/Downloads"
+# A new value here means a model was downloaded or deleted; every window reads the catalog again.
+MODELS_STAMP="$APP_SUPPORT/models.changed"
 
 # The speech binary's model store and user catalog, exported so every speech process this applet
 # starts lands in the applet's store without each call site passing --models-dir. The CLI's own
@@ -82,6 +88,27 @@ REC_REMOVE_BTN=162
 REC_LEVEL=170
 REC_TRANSCRIPT=210
 REC_STATUS=310
+
+# The Models window (speech.models.json) and its information sheet (speech.model.info.json).
+MODELS_STATUS=910
+MODELS_DONE_BTN=920
+MODELS_BUILTIN_BOX=1100
+MODELS_BUILTIN_LIST=1102
+MODELS_INSTALLED_BOX=1200
+MODELS_INSTALLED_LIST=1202
+MODELS_AVAILABLE_BOX=1300
+MODELS_AVAILABLE_LIST=1302
+MODEL_INFO_TEXT=4010
+
+# A model's card, inserted at run time: its id is MODEL_CARD_BASE + row * 10, and its parts sit at
+# these offsets from it (speech.models.jq builds the card).
+MODEL_CARD_BASE=2000
+CARD_TITLE=1
+CARD_DETAIL=2
+CARD_STATE=3
+CARD_DOWNLOAD=4
+CARD_DELETE=5
+CARD_INFO=6
 
 # The tabs, by their 0-based position in the TabView.
 TAB_INDEX_RECORDINGS=1
@@ -271,6 +298,15 @@ quiet_active() {   # $1 = pane dir, $2 = picker (default) | table
 # the reason in the spool's catalog.err, when the catalog cannot be read.
 
 load_models() {   # $1 = spool
+    read_catalog "$1"
+    local _read_status=$?
+    [ "$_read_status" -eq 0 ] || return 1
+    pane_models "$1" live
+    pane_models "$1" recordings
+}
+
+# The spool's models.tsv, from the catalog.
+read_catalog() {   # $1 = spool
     local _spool="$1"
     "$SPEECH_BIN" --json catalog > "$_spool/catalog.json" 2> "$_spool/catalog.err"
     local _catalog_status=$?
@@ -282,9 +318,56 @@ load_models() {   # $1 = spool
         return 1
     fi
     /bin/mv -f "$_spool/models.tsv.tmp" "$_spool/models.tsv"
-    /bin/mkdir -p "$_spool/live" "$_spool/recordings"
-    /bin/cp -f "$_spool/models.tsv" "$_spool/recordings/models.tsv"
-    /usr/bin/awk -F'\t' '("," $4 ",") ~ /,live,/' "$_spool/models.tsv" > "$_spool/live/models.tsv"
+}
+
+# A pane's own models.tsv, from the spool's: Recordings all of it, Live the rows that can stream.
+pane_models() {   # $1 = spool, $2 = live | recordings
+    /bin/mkdir -p "$1/$2"
+    if [ "$2" = live ]; then
+        /usr/bin/awk -F'\t' '("," $4 ",") ~ /,live,/' "$1/models.tsv" > "$1/live/models.tsv"
+    else
+        /bin/cp -f "$1/models.tsv" "$1/recordings/models.tsv"
+    fi
+}
+
+# --- models downloaded or deleted --------------------------------------------------------------
+# Downloading or deleting a model in the Models window writes a new value into models.changed
+# (bump_models_stamp). Each window's poller compares it with the value it last read the catalog
+# at, and reads the catalog again when they differ. A busy tab keeps its list and picker as they
+# are - its handlers map a picker position to a line of that list, and its run was started with a
+# model from it - and takes the new list once the run, batch or recording has ended.
+
+models_stamp() { read_state "$MODELS_STAMP"; }
+
+bump_models_stamp() {
+    /bin/mkdir -p "$APP_SUPPORT" 2>/dev/null
+    local _now="$(/bin/date +%s)"
+    write_state "$MODELS_STAMP" "$_now $$ $RANDOM"
+}
+
+reload_models_if_changed() {   # $1 = spool
+    local _stamp="$(models_stamp)"
+    local _seen="$(read_state "$1/models.seen")"
+    if [ "$_stamp" != "$_seen" ]; then
+        read_catalog "$1"
+        local _read_status=$?
+        [ "$_read_status" -eq 0 ] || return 1
+        write_state "$1/models.seen" "$_stamp"
+        : > "$1/live/models.pending"
+        : > "$1/recordings/models.pending"
+    fi
+    local _pane
+    for _pane in live recordings; do
+        [ -f "$1/$_pane/models.pending" ] || continue
+        pane_is_busy "$1/$_pane"
+        local _busy=$?
+        [ "$_busy" -eq 0 ] && continue
+        /bin/rm -f "$1/$_pane/models.pending"
+        use_pane "$_pane"
+        pane_models "$1" "$_pane"
+        populate_model_picker "$1/$_pane"
+        /bin/rm -f "$1/$_pane/actions.sig"
+    done
 }
 
 # The label a picker shows: the catalog's label with the engine's marker after it - [M] MLX,
