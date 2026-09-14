@@ -53,8 +53,8 @@ check "the picker points at it" "2" "$(ui_value "$REC_MODEL_PICKER")"
 check "labels carry the engine marker, and a quote is escaped" \
     "[\"Apple dictation (built in) $apple_logo\",\"Apple long-form (built in) $apple_logo\",\"Whisper large-v3-turbo (Q8_0) [G]\",\"Nemotron \\\"streaming\\\" (Q8_0) [G]\",\"Download Models...\"]" \
     "$(ui_prop "$REC_MODEL_PICKER" options)"
-check "Apple needs a language: no Automatic, sorted by name" \
-    '["English","German","Spanish"]' "$(ui_prop "$REC_LANGUAGE_PICKER" options)"
+check "Apple needs a language: no Automatic, sorted by name, Spanish by region" \
+    '["English","German","Spanish (Latin America)","Spanish (Spain)"]' "$(ui_prop "$REC_LANGUAGE_PICKER" options)"
 check "the locale's language is chosen" "en" "$(/bin/cat "$(rec_pane)/language.tag")"
 pane_call recordings refresh_recordings_actions "$(rec_pane)"
 check "Transcribe is enabled with recordings and a model" "1" "$(ui_enabled "$REC_TRANSCRIBE_BTN")"
@@ -107,6 +107,44 @@ end_quiet_window
 omc_control "$REC_LANGUAGE_PICKER" 1
 omc_run speech.recordings.language.changed
 check "apple.transcriber in English" "apple.transcriber|en" "$(/bin/cat "$(rec_pane)/model.id")|$(/bin/cat "$(rec_pane)/language.tag")"
+end_quiet_window
+
+section "Apple's Spanish is Latin American unless Spain is chosen"
+omc_control "$REC_LANGUAGE_PICKER" 3
+omc_run speech.recordings.language.changed
+check "Spanish (Latin America) is es-MX, saved as such" "es-MX|es-MX" \
+    "$(/bin/cat "$(rec_pane)/language.tag")|$(/bin/cat "$SPEECH_APP_SUPPORT/Settings/recordings.language" 2>/dev/null)"
+end_quiet_window
+omc_control "$REC_LANGUAGE_PICKER" 4
+omc_run speech.recordings.language.changed
+check "Spanish (Spain) is es-ES" "es-ES" "$(/bin/cat "$(rec_pane)/language.tag")"
+end_quiet_window
+pane_call recordings populate_language_picker "$(rec_pane)"
+check "a saved Spain stays Spain" "es-ES" "$(/bin/cat "$(rec_pane)/language.tag")"
+printf 'es' > "$SPEECH_APP_SUPPORT/Settings/recordings.language"
+pane_call recordings populate_language_picker "$(rec_pane)"
+check "a saved Spanish with no region is Latin American" "es-MX" "$(/bin/cat "$(rec_pane)/language.tag")"
+
+section "a Spanish with no region prefers a Latin American spelling on any engine"
+/bin/cp -f "$(rec_pane)/models.tsv" "$OMCTEST_WORK/models.tsv.keep"
+printf 'ggml.spanish@q8_0\tSpanish model\tes-ES,es-US\tbatch\t-\tggml\n' >> "$(rec_pane)/models.tsv"
+printf 'ggml.spanish@q8_0' > "$(rec_pane)/model.id"
+pane_call recordings populate_language_picker "$(rec_pane)"
+check "the model's own spellings are offered as they are" '["Spanish (es-ES)","Spanish (es-US)"]' "$(ui_prop "$REC_LANGUAGE_PICKER" options)"
+check "saved es selects es-US, not the first listed" "es-US" "$(/bin/cat "$(rec_pane)/language.tag")"
+printf 'ggml.whisper-es\tWhisper Spanish\ten,es\tbatch\t-\tggml\n' >> "$(rec_pane)/models.tsv"
+printf 'ggml.whisper-es' > "$(rec_pane)/model.id"
+printf 'es-MX' > "$SPEECH_APP_SUPPORT/Settings/recordings.language"
+pane_call recordings populate_language_picker "$(rec_pane)"
+check "a saved es-MX, what Apple's Spanish saves, still finds a model's bare es" "es" "$(/bin/cat "$(rec_pane)/language.tag")"
+printf 'ggml.spanish@q8_0' > "$(rec_pane)/model.id"
+pane_call recordings populate_language_picker "$(rec_pane)"
+check "a saved es-MX on a model with other regions takes the Latin American one" "es-US" "$(/bin/cat "$(rec_pane)/language.tag")"
+/bin/mv -f "$OMCTEST_WORK/models.tsv.keep" "$(rec_pane)/models.tsv"
+printf 'apple.transcriber' > "$(rec_pane)/model.id"
+printf 'en' > "$SPEECH_APP_SUPPORT/Settings/recordings.language"
+pane_call recordings populate_language_picker "$(rec_pane)"
+check "back in English for the batches below" "apple.transcriber|en" "$(/bin/cat "$(rec_pane)/model.id")|$(/bin/cat "$(rec_pane)/language.tag")"
 end_quiet_window
 
 # ------------------------------------------------------------------------------------------------

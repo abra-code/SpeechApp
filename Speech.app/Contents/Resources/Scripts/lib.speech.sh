@@ -467,6 +467,7 @@ populate_language_picker() {   # $1 = pane dir
     local _model="$(read_state "$_pane/model.id")"
     local _languages="$(tsv_field "$_pane/models.tsv" "$_model" 3)"
     local _caps="$(tsv_field "$_pane/models.tsv" "$_model" 5)"
+    local _engine="$(tsv_field "$_pane/models.tsv" "$_model" 6)"
 
     : > "$_pane/languages.unsorted"
     local _tag
@@ -475,6 +476,13 @@ populate_language_picker() {   # $1 = pane dir
         /usr/bin/awk -F'\t' '!/^#/ && NF >= 2 { printf "%s\t%s\n", $1, $2 }' "$RESOURCES_DIR/languages.tsv" > "$_pane/languages.unsorted" 2>/dev/null
     else
         for _tag in $(printf '%s' "$_languages" | /usr/bin/tr ',' ' '); do
+            # Apple ships Spanish for Spain and for the Americas, and a bare "es" reaches Apple as
+            # Spain's. Most Spanish speakers live in Latin America, so it is offered first and by
+            # name, as es-MX, Apple's Latin American locale; Spain stays one choice away.
+            if [ "$_engine" = apple ] && [ "$_tag" = es ]; then
+                printf 'es-MX\tSpanish (Latin America)\nes-ES\tSpanish (Spain)\n' >> "$_pane/languages.unsorted"
+                continue
+            fi
             printf '%s\t%s\n' "$_tag" "$(language_display_name "$_tag")" >> "$_pane/languages.unsorted"
         done
     fi
@@ -499,7 +507,10 @@ populate_language_picker() {   # $1 = pane dir
 
     # The selection: the saved language when this model offers it, else Automatic when offered,
     # else the language of the user's locale, else English, else the first entry. Matching falls
-    # back to the primary subtag, so a saved "pl" still finds a model's "pl-PL".
+    # back to the primary subtag either way: a saved "pl" still finds a model's "pl-PL", and a saved
+    # "es-MX" (what Apple's Spanish saves) still finds a model's bare "es", or another region of the
+    # same language. Among Spanish variants, a Latin American one (es-419, es-MX, es-US) wins over
+    # the first one listed.
     local _selected=""
     local _want
     local _saved="$(setting_get "$PANE.language")"
@@ -507,10 +518,13 @@ populate_language_picker() {   # $1 = pane dir
     for _want in "$_saved" auto "$_locale_language" en; do
         [ -n "$_want" ] || continue
         _selected="$(/usr/bin/awk -F'\t' -v want="$_want" '
+            BEGIN { want = tolower(want); want_primary = want; sub(/[-_].*/, "", want_primary) }
             { tag = tolower($1); primary = tag; sub(/[-_].*/, "", primary) }
-            tag == tolower(want) { print $1; found = 1; exit }
-            primary == tolower(want) && first == "" { first = $1 }
-            END { if (!found && first != "") print first }
+            tag == want { print $1; found = 1; exit }
+            tag == want_primary && bare == "" { bare = $1 }
+            primary == want_primary && first == "" { first = $1 }
+            primary == want_primary && primary == "es" && latin == "" && tag ~ /^es[-_](419|mx|us)$/ { latin = $1 }
+            END { if (!found) { if (bare != "") print bare; else if (latin != "") print latin; else if (first != "") print first } }
         ' "$_pane/languages.tsv")"
         [ -n "$_selected" ] && break
     done
