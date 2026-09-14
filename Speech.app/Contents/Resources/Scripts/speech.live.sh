@@ -1,0 +1,72 @@
+# speech.live - start transcribing the microphone live with the Live tab's model and language.
+# The handler only starts `speech stream` and its stdin holder; the poller reads the session's
+# events into the window, and Stop ends it.
+
+. "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.sh"
+
+pane="$(pane_dir_for "$window_uuid" live)"
+[ -n "$window_uuid" ] && [ -d "$pane" ] || exit 0
+use_pane live
+
+# A button press and a disabled button arriving late are two ways in. The lock makes a second
+# press a no-op rather than a second session.
+/bin/mkdir "$pane/dispatch.lock" 2>/dev/null
+lock_status=$?
+[ "$lock_status" -eq 0 ] || exit 0
+trap '/bin/rmdir "$pane/dispatch.lock" 2>/dev/null' EXIT
+
+run_is_active "$pane"
+active=$?
+[ "$active" -eq 0 ] && exit 0
+other_pane_is_busy "$pane"
+other_busy=$?
+if [ "$other_busy" -eq 0 ]; then
+    set_status "Recordings are being transcribed. Live is available when they are done."
+    exit 0
+fi
+
+model="$(read_state "$pane/model.id")"
+if [ -z "$model" ]; then
+    set_status "No speech model on this Mac can transcribe live yet."
+    exit 0
+fi
+label="$(tsv_field "$pane/models.tsv" "$model" 2)"
+[ -n "$label" ] || label="$model"
+model_is_live "$pane" "$model"
+live=$?
+if [ "$live" -ne 0 ]; then
+    set_status "$label cannot transcribe live. Choose a model that can."
+    exit 0
+fi
+language="$(read_state "$pane/language.tag")"
+
+run="$(new_run_dir "$pane")"
+if [ -z "$run" ]; then
+    set_status "Could not create a working directory in $pane"
+    exit 1
+fi
+: > "$run/segments.tsv"
+write_state "$run/kind" live
+write_state "$run/model" "$model"
+write_state "$run/language" "$language"
+write_state "$run/state" running
+
+show_transcript_file ""
+pid="$(spawn_stream "$run" "$model" "$language")"
+if [ -z "$pid" ]; then
+    write_state "$run/error.txt" "Could not create the live session's input in $run."
+    write_state "$run/state" failed
+    activate_run_dir "$pane" "$run"
+    /bin/rm -f "$pane/actions.sig"
+    exit 0
+fi
+write_state "$run/speech.pid" "$pid"
+# The run becomes current only once its pid is on disk: the poller settles a running run whose
+# process it cannot find as failed.
+activate_run_dir "$pane" "$run"
+
+set_status "Starting the microphone with $label..."
+/bin/rm -f "$pane/actions.sig"
+refresh_live_actions "$pane"
+
+exit 0

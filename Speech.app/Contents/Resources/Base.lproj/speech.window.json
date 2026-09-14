@@ -22,42 +22,15 @@
       "children": [
         {
           "type": "Tab",
-          "properties": { "title": "Transcribe", "systemImage": "waveform" },
+          "properties": { "title": "Live", "systemImage": "mic" },
           "content": {
             "type": "VStack",
             "properties": {
               "spacing": 10,
               "padding": 14,
-              "onDropTypes": ["public.file-url"],
-              "onDropActionID": "speech.drop",
               "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
             },
             "children": [
-              {
-                "type": "HStack",
-                "properties": { "spacing": 8 },
-                "children": [
-                  { "type": "Image", "properties": { "systemName": "doc.badge.waveform", "foregroundStyle": "secondary" } },
-                  {
-                    "type": "Text",
-                    "id": 110,
-                    "properties": {
-                      "text": "Drop a recording here, or choose one.",
-                      "foregroundStyle": "secondary",
-                      "frame": { "maxWidth": "infinity", "alignment": "leading" }
-                    }
-                  },
-                  {
-                    "type": "Button",
-                    "id": 111,
-                    "properties": {
-                      "title": "Choose File...",
-                      "buttonStyle": "bordered",
-                      "actionID": "speech.open"
-                    }
-                  }
-                ]
-              },
               {
                 "type": "HStack",
                 "properties": { "spacing": 8 },
@@ -101,23 +74,11 @@
                     "type": "Button",
                     "id": 42,
                     "properties": {
-                      "title": "Record",
-                      "systemImage": "mic.fill",
-                      "buttonStyle": "bordered",
-                      "disabled": true,
-                      "keyboardShortcut": { "key": "r", "modifiers": ["command", "shift"] },
-                      "actionID": "speech.record"
-                    }
-                  },
-                  {
-                    "type": "Button",
-                    "id": 40,
-                    "properties": {
-                      "title": "Transcribe",
+                      "title": "Live",
+                      "systemImage": "waveform",
                       "buttonStyle": "borderedProminent",
                       "disabled": true,
-                      "keyboardShortcut": { "key": "return", "modifiers": ["command"] },
-                      "actionID": "speech.transcribe"
+                      "actionID": "speech.live"
                     }
                   }
                 ]
@@ -127,7 +88,7 @@
                 "id": 200,
                 "properties": {
                   "readOnly": true,
-                  "placeholder": "The transcript appears here.",
+                  "placeholder": "Press Live and speak. The transcript appears here as you talk.",
                   "font": { "size": 13, "design": "default" },
                   "background": "background.secondary",
                   "scrollContentBackground": "hidden",
@@ -168,6 +129,176 @@
                       "buttonStyle": "bordered",
                       "disabled": true,
                       "actionID": "speech.copy"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "type": "Tab",
+          "properties": { "title": "Recordings", "systemImage": "waveform" },
+          "content": {
+            "type": "VStack",
+            "properties": {
+              "spacing": 10,
+              "padding": 14,
+              "onDropTypes": ["public.file-url"],
+              "onDropActionID": "speech.drop",
+              "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
+            },
+            "children": [
+              {
+                "type": "HStack",
+                "properties": { "spacing": 8 },
+                "children": [
+                  { "type": "Text", "properties": { "text": "Model", "foregroundStyle": "secondary" } },
+                  {
+                    "type": "Picker",
+                    "id": 125,
+                    "properties": {
+                      "pickerStyle": "menu",
+                      "labelsHidden": true,
+                      "options": ["Loading..."],
+                      "actionID": "speech.recordings.model.changed",
+                      "frame": { "minWidth": 260, "idealWidth": 340 }
+                    }
+                  },
+                  { "type": "Text", "properties": { "text": "Language", "foregroundStyle": "secondary" } },
+                  {
+                    "type": "Picker",
+                    "id": 126,
+                    "properties": {
+                      "pickerStyle": "menu",
+                      "labelsHidden": true,
+                      "options": ["Automatic"],
+                      "actionID": "speech.recordings.language.changed",
+                      "frame": { "minWidth": 150, "idealWidth": 180 }
+                    }
+                  },
+                  { "type": "Spacer" },
+                  {
+                    "type": "Button",
+                    "id": 141,
+                    "properties": {
+                      "title": "Stop",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "actionID": "speech.recordings.stop"
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "id": 140,
+                    "properties": {
+                      "title": "Transcribe",
+                      "buttonStyle": "borderedProminent",
+                      "disabled": true,
+                      "keyboardShortcut": { "key": "return", "modifiers": ["command"] },
+                      "actionID": "speech.recordings.transcribe"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "HSplitView",
+                "properties": { "frame": { "maxWidth": "infinity", "maxHeight": "infinity" } },
+                "children": [
+                  {
+                    "type": "VStack",
+                    "properties": {
+                      "spacing": 0,
+                      "frame": { "minWidth": 300, "idealWidth": 420, "maxHeight": "infinity" }
+                    },
+                    "children": [
+                      {
+                        "type": "Table",
+                        "id": 160,
+                        "properties": {
+                          "columns": ["Recording", "Status"],
+                          "widths": [180, 220],
+                          "minWidths": [100, 100],
+                          "actionID": "speech.recordings.selected",
+                          "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
+                        }
+                      },
+                      {
+                        "type": "HStack",
+                        "properties": { "spacing": 4, "padding": { "top": 6 } },
+                        "children": [
+                          {
+                            "type": "Button",
+                            "id": 161,
+                            "properties": {
+                              "systemImage": "plus",
+                              "buttonStyle": "borderless",
+                              "actionID": "speech.open"
+                            }
+                          },
+                          {
+                            "type": "Button",
+                            "id": 162,
+                            "properties": {
+                              "systemImage": "minus",
+                              "buttonStyle": "borderless",
+                              "disabled": true,
+                              "actionID": "speech.recordings.remove"
+                            }
+                          },
+                          { "type": "Spacer" }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "TextEditor",
+                    "id": 210,
+                    "properties": {
+                      "readOnly": true,
+                      "placeholder": "The selected recording's transcript appears here.",
+                      "font": { "size": 13, "design": "default" },
+                      "background": "background.secondary",
+                      "scrollContentBackground": "hidden",
+                      "cornerRadius": 8,
+                      "frame": { "minWidth": 260, "maxWidth": "infinity", "maxHeight": "infinity" }
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "HStack",
+                "properties": { "spacing": 8 },
+                "children": [
+                  {
+                    "type": "Text",
+                    "id": 310,
+                    "properties": {
+                      "text": "Starting...",
+                      "font": "caption",
+                      "foregroundStyle": "secondary",
+                      "frame": { "maxWidth": "infinity", "alignment": "leading" }
+                    }
+                  },
+                  {
+                    "type": "Menu",
+                    "id": 150,
+                    "properties": { "title": "Export", "disabled": true, "frame": { "width": 110 } },
+                    "children": [
+                      { "type": "Button", "id": 151, "properties": { "title": "Plain Text (.txt)", "actionID": "speech.recordings.export.txt" } },
+                      { "type": "Button", "id": 152, "properties": { "title": "SRT Subtitles (.srt)", "actionID": "speech.recordings.export.srt" } },
+                      { "type": "Button", "id": 153, "properties": { "title": "WebVTT Subtitles (.vtt)", "actionID": "speech.recordings.export.vtt" } },
+                      { "type": "Button", "id": 154, "properties": { "title": "JSON with Timings (.json)", "actionID": "speech.recordings.export.json" } }
+                    ]
+                  },
+                  {
+                    "type": "Button",
+                    "id": 155,
+                    "properties": {
+                      "title": "Copy",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "actionID": "speech.recordings.copy"
                     }
                   }
                 ]

@@ -20,6 +20,10 @@ SCRIPTS_DIR="$RESOURCES_DIR/Scripts"
 
 TAB="$(printf '\t')"
 US="$(printf '\037')"
+NL="
+"
+# U+F8FF, the Apple logo, as UTF-8 bytes: the marker of Apple's own engines in a model label.
+APPLE_LOGO="$(printf '\357\243\277')"
 
 # --- Substitutable outside world ---------------------------------------------------------------
 # Everything below names something a test must not reach for real: the speech binary, which
@@ -29,10 +33,11 @@ US="$(printf '\037')"
 # bundle-relative path, so a variable is the only seam. Nothing sets these in normal use.
 #
 # Two environment namespaces share the SPEECH_ prefix and must not be treated as one set. The
-# ones read here (SPEECH_BIN, SPEECH_POLL_SCRIPT, SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT)
-# are this applet's test hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the
-# speech binary's own production configuration.
+# ones read here (SPEECH_BIN, SPEECH_FINGERPRINT_BIN, SPEECH_POLL_SCRIPT,
+# SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT) are this applet's test hooks. SPEECH_MODELS_DIR
+# and SPEECH_CATALOG_DIR, exported below, are the speech binary's own production configuration.
 SPEECH_BIN="${SPEECH_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech}"
+FINGERPRINT_BIN="${SPEECH_FINGERPRINT_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/fingerprint}"
 POLL_SCRIPT="${SPEECH_POLL_SCRIPT:-$SCRIPTS_DIR/speech.poll.sh}"
 LIVE_STDIN_SCRIPT="${SPEECH_LIVE_STDIN_SCRIPT:-$SCRIPTS_DIR/speech.live.stdin.sh}"
 APP_SUPPORT="${SPEECH_APP_SUPPORT:-$HOME/Library/Application Support/Speech}"
@@ -49,34 +54,88 @@ export SPEECH_MODELS_DIR SPEECH_CATALOG_DIR
 
 # ActionUI control ids (must match speech.window.json).
 TAB_VIEW=5
-MODEL_PICKER=25
-LANGUAGE_PICKER=26
-TRANSCRIBE_BTN=40
-STOP_BTN=41
-RECORD_BTN=42
-EXPORT_MENU=50
-COPY_BTN=55
-SOURCE_TEXT=110
-CHOOSE_BTN=111
-TRANSCRIPT_EDITOR=200
-STATUS_TEXT=300
 
-# The one global handoff key: a file opened from Finder, the Dock, File > Open or the Services
-# menu is stashed here and consumed by the window that opens for it.
+# The Live tab.
+LIVE_MODEL_PICKER=25
+LIVE_LANGUAGE_PICKER=26
+LIVE_STOP_BTN=41
+LIVE_BTN=42
+LIVE_EXPORT_MENU=50
+LIVE_COPY_BTN=55
+LIVE_TRANSCRIPT=200
+LIVE_STATUS=300
+
+# The Recordings tab.
+REC_MODEL_PICKER=125
+REC_LANGUAGE_PICKER=126
+REC_TRANSCRIBE_BTN=140
+REC_STOP_BTN=141
+REC_EXPORT_MENU=150
+REC_COPY_BTN=155
+REC_TABLE=160
+REC_ADD_BTN=161
+REC_REMOVE_BTN=162
+REC_TRANSCRIPT=210
+REC_STATUS=310
+
+# The tabs, by their 0-based position in the TabView.
+TAB_INDEX_RECORDINGS=1
+
+# The one global handoff key: recordings opened from Finder, the Dock, File > Open or the Services
+# menu are stashed here, one path per line, and consumed by the window that opens for them.
 PB_OPEN_PATH="SPEECH_OPEN_PATH"
+
+# The extended attribute Speech writes on every transcript it saves beside a recording:
+#   speech-transcript-v1 <recording fingerprint> <transcript fingerprint>
+# It is what lets a later run tell its own untouched transcript, which it may replace, from a file
+# the user wrote or edited, which it must not.
+TRANSCRIPT_XATTR="com.abracode.speech.transcript"
+
+# --- panes ---------------------------------------------------------------------------------------
+# The Live and Recordings tabs each have a model picker, a language picker, a transcript and a
+# status line of their own, and keep their state in a directory of their own inside the window's
+# spool. use_pane points the generic functions below at one of them: they write to MODEL_PICKER,
+# STATUS_TEXT and the rest, and read the saved model and language under the pane's own keys.
+
+use_pane() {   # $1 = live | recordings
+    PANE="$1"
+    case "$1" in
+        live)
+            MODEL_PICKER=$LIVE_MODEL_PICKER
+            LANGUAGE_PICKER=$LIVE_LANGUAGE_PICKER
+            STOP_BTN=$LIVE_STOP_BTN
+            EXPORT_MENU=$LIVE_EXPORT_MENU
+            COPY_BTN=$LIVE_COPY_BTN
+            TRANSCRIPT_EDITOR=$LIVE_TRANSCRIPT
+            STATUS_TEXT=$LIVE_STATUS
+            ;;
+        *)
+            PANE="recordings"
+            MODEL_PICKER=$REC_MODEL_PICKER
+            LANGUAGE_PICKER=$REC_LANGUAGE_PICKER
+            STOP_BTN=$REC_STOP_BTN
+            EXPORT_MENU=$REC_EXPORT_MENU
+            COPY_BTN=$REC_COPY_BTN
+            TRANSCRIPT_EDITOR=$REC_TRANSCRIPT
+            STATUS_TEXT=$REC_STATUS
+            ;;
+    esac
+}
+
+spool_dir_for() { printf '%s' "$SESSIONS_DIR/$1"; }
+pane_dir_for() { printf '%s' "$SESSIONS_DIR/$1/$2"; }   # $1 = window uuid, $2 = pane
 
 # --- small helpers -----------------------------------------------------------------------------
 
 pb_set() { "$pasteboard" "$1" set "$2"; }
 pb_get() { "$pasteboard" "$1" get 2>/dev/null; }
 
-# Open a new window for a file: stash the path for speech.window.init, then chain to the window.
-route_file() {   # $1 = file path
+# Open a new window for recordings: stash the paths for speech.window.init, then chain to the
+# window.
+route_files() {   # $1 = file paths, one per line
     pb_set "$PB_OPEN_PATH" "$1"
     "$next_command" "$OMC_CURRENT_COMMAND_GUID" "speech.new"
 }
-
-spool_dir_for() { printf '%s' "$SESSIONS_DIR/$1"; }
 
 set_status()    { "$dialog" "$window_uuid" "$STATUS_TEXT" "$1"; }
 enable_ctrl()   { "$dialog" "$window_uuid" "$1" omc_enable; }
@@ -88,6 +147,14 @@ set_enabled() {   # $1 = view id, $2 = 1 to enable, anything else to disable
         enable_ctrl "$1"
     else
         disable_ctrl "$1"
+    fi
+}
+
+show_transcript_file() {   # $1 = file; empty or absent clears the transcript
+    if [ -n "$1" ] && [ -f "$1" ]; then
+        /bin/cat "$1" | "$dialog" "$window_uuid" "$TRANSCRIPT_EDITOR" omc_set_value_from_stdin plain
+    else
+        printf '' | "$dialog" "$window_uuid" "$TRANSCRIPT_EDITOR" omc_set_value_from_stdin plain
     fi
 }
 
@@ -151,36 +218,52 @@ tsv_field() {   # $1 = file, $2 = first-column value, $3 = column number
     /usr/bin/awk -F'\t' -v key="$2" -v col="$3" '$1 == key { print $col; exit }' "$1" 2>/dev/null
 }
 
-# Returns 0 when a model in the spool's models.tsv can transcribe live (its modes include live).
-model_is_live() {   # $1 = spool, $2 = model id
+# Returns 0 when a model in a pane's models.tsv can transcribe live (its modes include live).
+model_is_live() {   # $1 = pane dir, $2 = model id
     local _modes="$(tsv_field "$1/models.tsv" "$2" 4)"
     case ",$_modes," in *,live,*) return 0 ;; esac
     return 1
 }
 
-# --- picker quiet window -----------------------------------------------------------------------
-# Programmatic option and selection updates can fire a picker's actionID with a transitional
-# value. Every programmatic update opens a two-second window in which the change handlers do
-# nothing, so an echo can neither switch the model nor overwrite a saved preference.
+# The fingerprint of one file's contents, from the bundled `fingerprint` tool. --xattr=off keeps
+# the tool from caching its hash in an attribute on the user's recording. Prints nothing and
+# returns non-zero when the tool fails.
+fingerprint_of() {   # $1 = file
+    local _out
+    _out="$("$FINGERPRINT_BIN" --xattr=off "$1" 2>/dev/null)"
+    local _fp_status=$?
+    [ "$_fp_status" -eq 0 ] || return 1
+    local _fp="$(printf '%s\n' "$_out" | /usr/bin/awk '$1 == "Fingerprint:" { print $2; exit }')"
+    [ -n "$_fp" ] || return 1
+    printf '%s' "$_fp"
+}
 
-quiet_begin() {   # $1 = spool
+# --- quiet windows -------------------------------------------------------------------------------
+# Programmatic option and selection updates can fire a control's actionID with a transitional
+# value. Every programmatic update opens a two-second window in which the change handlers do
+# nothing, so an echo can neither switch the model nor overwrite a saved preference. The pickers
+# and the recordings table each have a window of their own: replacing the table's rows must not
+# silence a model the user picks right after adding a recording.
+
+quiet_begin() {   # $1 = pane dir, $2 = picker (default) | table
     local _now="$(/bin/date +%s)"
-    write_state "$1/picker_quiet" "$((_now + 2))"
+    write_state "$1/${2:-picker}_quiet" "$((_now + 2))"
 }
 
 # Returns 0 while the quiet window is open.
-quiet_active() {   # $1 = spool
-    local _until="$(read_state "$1/picker_quiet")"
+quiet_active() {   # $1 = pane dir, $2 = picker (default) | table
+    local _until="$(read_state "$1/${2:-picker}_quiet")"
     case "$_until" in ''|*[!0-9]*) return 1 ;; esac
     local _now="$(/bin/date +%s)"
     [ "$_now" -lt "$_until" ]
 }
 
 # --- the model list ----------------------------------------------------------------------------
-# models.tsv in the spool holds the rows this window can transcribe with, in picker order:
-#   id <TAB> label <TAB> languages <TAB> modes <TAB> capabilities
-# speech.catalog.jq decides which rows qualify. Returns non-zero, with the reason in the spool's
-# catalog.err, when the catalog cannot be read.
+# models.tsv holds the rows a window can transcribe with, in picker order:
+#   id <TAB> label <TAB> languages <TAB> modes <TAB> capabilities <TAB> engine
+# speech.catalog.jq decides which rows qualify. The spool's copy is every runnable row; each pane
+# keeps its own: Recordings all of them, Live only those that can stream. Returns non-zero, with
+# the reason in the spool's catalog.err, when the catalog cannot be read.
 
 load_models() {   # $1 = spool
     local _spool="$1"
@@ -194,52 +277,72 @@ load_models() {   # $1 = spool
         return 1
     fi
     /bin/mv -f "$_spool/models.tsv.tmp" "$_spool/models.tsv"
+    /bin/mkdir -p "$_spool/live" "$_spool/recordings"
+    /bin/cp -f "$_spool/models.tsv" "$_spool/recordings/models.tsv"
+    /usr/bin/awk -F'\t' '("," $4 ",") ~ /,live,/' "$_spool/models.tsv" > "$_spool/live/models.tsv"
 }
 
-# Fill the Model picker from models.tsv and settle the selection: the saved model if it is still
-# runnable, else apple.transcriber when present, else the first row. The selection is recorded
-# in the spool's model.id, which every handler reads rather than trusting a picker index.
-populate_model_picker() {   # $1 = spool
-    local _spool="$1"
+# The label a picker shows: the catalog's label with the engine's marker after it - [M] MLX,
+# [G] ggml, [F] FluidAudio, the Apple logo for Apple's own engines. Picker options are text only,
+# so the marker is a suffix. The status line uses the plain label.
+model_display_label() {   # $1 = label, $2 = engine
+    case "$2" in
+        apple) printf '%s %s' "$1" "$APPLE_LOGO" ;;
+        mlx)   printf '%s [M]' "$1" ;;
+        ggml)  printf '%s [G]' "$1" ;;
+        fluid) printf '%s [F]' "$1" ;;
+        *)     printf '%s' "$1" ;;
+    esac
+}
+
+# Fill the pane's Model picker from its models.tsv and settle the selection: the saved model if
+# it is still offered, else apple.transcriber when present, else the first row. The selection is
+# recorded in the pane's model.id, which every handler reads rather than trusting a picker index.
+populate_model_picker() {   # $1 = pane dir
+    local _pane="$1"
     local _options="["
     local _first=1
-    local _id _label _rest
-    while IFS="$TAB" read -r _id _label _rest; do
+    local _id _label _languages _modes _caps _engine
+    while IFS="$TAB" read -r _id _label _languages _modes _caps _engine; do
         [ -n "$_id" ] || continue
         if [ "$_first" = 1 ]; then _first=0; else _options="$_options,"; fi
-        _options="$_options\"$(json_escape "$_label")\""
-    done < "$_spool/models.tsv"
+        _options="$_options\"$(json_escape "$(model_display_label "$_label" "$_engine")")\""
+    done < "$_pane/models.tsv"
 
     if [ "$_first" = 1 ]; then
-        /bin/rm -f "$_spool/model.id" "$_spool/languages.tsv" "$_spool/language.tag"
-        quiet_begin "$_spool"
-        "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" '["No models available"]'
+        /bin/rm -f "$_pane/model.id" "$_pane/languages.tsv" "$_pane/language.tag"
+        quiet_begin "$_pane"
+        if [ "$PANE" = live ]; then
+            "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" '["No live models available"]'
+        else
+            "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" '["No models available"]'
+        fi
         "$dialog" "$window_uuid" "$LANGUAGE_PICKER" omc_set_property "options" '["-"]'
         return 0
     fi
     _options="$_options]"
 
     local _selected=""
-    local _saved="$(setting_get model)"
+    local _saved="$(setting_get "$PANE.model")"
     local _line
     if [ -n "$_saved" ]; then
-        _line="$(tsv_line_of "$_spool/models.tsv" "$_saved")"
+        _line="$(tsv_line_of "$_pane/models.tsv" "$_saved")"
         [ -n "$_line" ] && _selected="$_saved"
     fi
     if [ -z "$_selected" ]; then
-        _line="$(tsv_line_of "$_spool/models.tsv" apple.transcriber)"
+        _line="$(tsv_line_of "$_pane/models.tsv" apple.transcriber)"
         [ -n "$_line" ] && _selected="apple.transcriber"
     fi
     if [ -z "$_selected" ]; then
-        _selected="$(/usr/bin/head -1 "$_spool/models.tsv" | /usr/bin/cut -f1)"
+        _selected="$(/usr/bin/head -1 "$_pane/models.tsv" | /usr/bin/cut -f1)"
     fi
-    _line="$(tsv_line_of "$_spool/models.tsv" "$_selected")"
-    write_state "$_spool/model.id" "$_selected"
+    _line="$(tsv_line_of "$_pane/models.tsv" "$_selected")"
+    write_state "$_pane/model.id" "$_selected"
 
-    quiet_begin "$_spool"
+    quiet_begin "$_pane"
     "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" "$_options"
     "$dialog" "$window_uuid" "$MODEL_PICKER" "$_line"
-    populate_language_picker "$_spool"
+    populate_language_picker "$_pane"
 }
 
 # The display name of a language tag: the English name of its primary subtag from
@@ -258,37 +361,37 @@ language_display_name() {   # $1 = tag
     fi
 }
 
-# Fill the Language picker for the selected model. languages.tsv in the spool holds the options
-# in picker order: tag <TAB> display name. The tags are the model's own spelling, which is what
-# speech has to be given back.
+# Fill the pane's Language picker for its selected model. languages.tsv in the pane holds the
+# options in picker order: tag <TAB> display name. The tags are the model's own spelling, which is
+# what speech has to be given back.
 #
 # "Automatic" is offered only to a model that identifies languages itself (lang_id). The others
 # need a language: Apple's engines refuse to run without one, and Canary given none silently
 # translates into English rather than failing.
-populate_language_picker() {   # $1 = spool
-    local _spool="$1"
-    local _model="$(read_state "$_spool/model.id")"
-    local _languages="$(tsv_field "$_spool/models.tsv" "$_model" 3)"
-    local _caps="$(tsv_field "$_spool/models.tsv" "$_model" 5)"
+populate_language_picker() {   # $1 = pane dir
+    local _pane="$1"
+    local _model="$(read_state "$_pane/model.id")"
+    local _languages="$(tsv_field "$_pane/models.tsv" "$_model" 3)"
+    local _caps="$(tsv_field "$_pane/models.tsv" "$_model" 5)"
 
-    : > "$_spool/languages.unsorted"
+    : > "$_pane/languages.unsorted"
     local _tag
     if [ "$_languages" = "*" ]; then
         # The engine reports no list of its own: offer every language the name table knows.
-        /usr/bin/awk -F'\t' '!/^#/ && NF >= 2 { printf "%s\t%s\n", $1, $2 }' "$RESOURCES_DIR/languages.tsv" > "$_spool/languages.unsorted" 2>/dev/null
+        /usr/bin/awk -F'\t' '!/^#/ && NF >= 2 { printf "%s\t%s\n", $1, $2 }' "$RESOURCES_DIR/languages.tsv" > "$_pane/languages.unsorted" 2>/dev/null
     else
         for _tag in $(printf '%s' "$_languages" | /usr/bin/tr ',' ' '); do
-            printf '%s\t%s\n' "$_tag" "$(language_display_name "$_tag")" >> "$_spool/languages.unsorted"
+            printf '%s\t%s\n' "$_tag" "$(language_display_name "$_tag")" >> "$_pane/languages.unsorted"
         done
     fi
 
-    : > "$_spool/languages.tsv.tmp"
+    : > "$_pane/languages.tsv.tmp"
     case ",$_caps," in
-        *,lang_id,*) printf 'auto\tAutomatic\n' >> "$_spool/languages.tsv.tmp" ;;
+        *,lang_id,*) printf 'auto\tAutomatic\n' >> "$_pane/languages.tsv.tmp" ;;
     esac
-    LC_ALL=C /usr/bin/sort -t "$TAB" -k2,2f "$_spool/languages.unsorted" >> "$_spool/languages.tsv.tmp"
-    /bin/mv -f "$_spool/languages.tsv.tmp" "$_spool/languages.tsv"
-    /bin/rm -f "$_spool/languages.unsorted"
+    LC_ALL=C /usr/bin/sort -t "$TAB" -k2,2f "$_pane/languages.unsorted" >> "$_pane/languages.tsv.tmp"
+    /bin/mv -f "$_pane/languages.tsv.tmp" "$_pane/languages.tsv"
+    /bin/rm -f "$_pane/languages.unsorted"
 
     local _options="["
     local _first=1
@@ -297,7 +400,7 @@ populate_language_picker() {   # $1 = spool
         [ -n "$_tag" ] || continue
         if [ "$_first" = 1 ]; then _first=0; else _options="$_options,"; fi
         _options="$_options\"$(json_escape "$_name")\""
-    done < "$_spool/languages.tsv"
+    done < "$_pane/languages.tsv"
     _options="$_options]"
 
     # The selection: the saved language when this model offers it, else Automatic when offered,
@@ -305,7 +408,7 @@ populate_language_picker() {   # $1 = spool
     # back to the primary subtag, so a saved "pl" still finds a model's "pl-PL".
     local _selected=""
     local _want
-    local _saved="$(setting_get language)"
+    local _saved="$(setting_get "$PANE.language")"
     local _locale_language="$(printf '%s' "${LANG%%[_.]*}" | /usr/bin/tr '[:upper:]' '[:lower:]')"
     for _want in "$_saved" auto "$_locale_language" en; do
         [ -n "$_want" ] || continue
@@ -314,39 +417,68 @@ populate_language_picker() {   # $1 = spool
             tag == tolower(want) { print $1; found = 1; exit }
             primary == tolower(want) && first == "" { first = $1 }
             END { if (!found && first != "") print first }
-        ' "$_spool/languages.tsv")"
+        ' "$_pane/languages.tsv")"
         [ -n "$_selected" ] && break
     done
-    [ -n "$_selected" ] || _selected="$(/usr/bin/head -1 "$_spool/languages.tsv" | /usr/bin/cut -f1)"
-    write_state "$_spool/language.tag" "$_selected"
-    local _line="$(tsv_line_of "$_spool/languages.tsv" "$_selected")"
+    [ -n "$_selected" ] || _selected="$(/usr/bin/head -1 "$_pane/languages.tsv" | /usr/bin/cut -f1)"
+    write_state "$_pane/language.tag" "$_selected"
+    local _line="$(tsv_line_of "$_pane/languages.tsv" "$_selected")"
 
-    quiet_begin "$_spool"
+    quiet_begin "$_pane"
     "$dialog" "$window_uuid" "$LANGUAGE_PICKER" omc_set_property "options" "$_options"
     [ -n "$_line" ] && "$dialog" "$window_uuid" "$LANGUAGE_PICKER" "$_line"
     return 0
 }
 
-# --- the recording being transcribed ---------------------------------------------------------
+# The Model picker changed: the body of both panes' change handlers. The picker delivers a 1-based
+# index, resolved against the pane's models.tsv, which is in picker order. A change inside the
+# quiet window is the echo of a programmatic update and is ignored, as is an index that resolves
+# to nothing, and a change while the pane is busy.
+handle_model_changed() {   # $1 = pane dir, $2 = picker value
+    quiet_active "$1"
+    local _quiet=$?
+    [ "$_quiet" -eq 0 ] && return 0
+    case "$2" in ''|*[!0-9]*) return 0 ;; esac
+    local _model="$(/usr/bin/sed -n "${2}p" "$1/models.tsv" 2>/dev/null | /usr/bin/cut -f1)"
+    [ -n "$_model" ] || return 0
+    [ "$_model" = "$(read_state "$1/model.id")" ] && return 0
+    pane_is_busy "$1"
+    local _busy=$?
+    [ "$_busy" -eq 0 ] && return 0
 
-# Point the window at a recording. Whatever the previous run produced described a different
-# recording, so it goes too.
-set_source() {   # $1 = spool, $2 = file path
-    write_state "$1/source.path" "$2"
-    local _name="$(/usr/bin/basename "$2")"
-    "$dialog" "$window_uuid" "$SOURCE_TEXT" "$_name"
-    "$dialog" "$window_uuid" omc_window "$_name - Speech"
-    clear_run "$1"
+    write_state "$1/model.id" "$_model"
+    setting_set "$PANE.model" "$_model"
+    /bin/rm -f "$1/batch.summary"
+    populate_language_picker "$1"
+    /bin/rm -f "$1/actions.sig"
+}
+
+# The Language picker changed. The saved preference is a language tag, never an index, because
+# the list differs from one model to the next.
+handle_language_changed() {   # $1 = pane dir, $2 = picker value
+    quiet_active "$1"
+    local _quiet=$?
+    [ "$_quiet" -eq 0 ] && return 0
+    case "$2" in ''|*[!0-9]*) return 0 ;; esac
+    local _tag="$(/usr/bin/sed -n "${2}p" "$1/languages.tsv" 2>/dev/null | /usr/bin/cut -f1)"
+    [ -n "$_tag" ] || return 0
+    [ "$_tag" = "$(read_state "$1/language.tag")" ] && return 0
+    write_state "$1/language.tag" "$_tag"
+    setting_set "$PANE.language" "$_tag"
 }
 
 # --- runs ----------------------------------------------------------------------------------------
-# A run lives in its own directory, <spool>/run-<epoch>-<pid>, named by the spool's `current`
-# file. Starting a run writes a fresh directory and then repoints `current`, so a poller in the
-# middle of reading the previous run's events can never write into the new one.
+# A run is one speech process and the files it leaves, in a directory the pane's `current` file
+# names. A live session lives in <pane>/run-<epoch>-<pid>, and starting a run writes a fresh
+# directory before repointing `current`, so a poller in the middle of reading the previous run's
+# events can never write into the new one. A recording's transcription lives in
+# <pane>/items/<key>, where the key is the recording path's md5, so each recording in the list
+# keeps its last transcript for as long as the window is open.
 #
 # Files in a run directory:
 #   kind           file (speech transcribe) | live (speech stream)
 #   model, language the model id and language tag the run was started with
+#   source.path    the recording (file runs); position, "2 of 5" in a batch
 #   state          running | stopping | done | failed | stopped
 #   speech.pid     the speech process
 #   events.jsonl   its stdout, one JSON event per line; stderr.log, its stderr
@@ -354,29 +486,48 @@ set_source() {   # $1 = spool, $2 = file path
 #   segments.tsv   id <TAB> kind <TAB> text, sorted by id - the transcript's source of truth
 #   transcript.txt the rendered transcript; result.json, the finished transcript as JSON
 #   stdin.fifo     a live run's stdin; stop.request, written by Stop for the stdin holder
-#   summary.txt, error.txt, warnings.txt, reflected
+#   recording.fp   the recording's fingerprint when its transcription started
+#   saved.name, not_saved.txt  what became of the transcript beside the recording
+#   summary.txt, error.txt, warnings.txt, reflected, settled
 
-current_run_dir() {   # $1 = spool; prints the run directory, empty when there is none
+current_run_dir() {   # $1 = pane dir; prints the run directory, empty when there is none
     local _name="$(read_state "$1/current")"
     [ -n "$_name" ] || return 1
     [ -d "$1/$_name" ] || return 1
     printf '%s' "$1/$_name"
 }
 
-run_state() {   # $1 = spool
+run_state() {   # $1 = pane dir
     local _run="$(current_run_dir "$1")"
     [ -n "$_run" ] || return 0
     read_state "$_run/state"
 }
 
-# Returns 0 while the current run is running or stopping.
-run_is_active() {   # $1 = spool
+# Returns 0 while the pane's current run is running or stopping.
+run_is_active() {   # $1 = pane dir
     local _state="$(run_state "$1")"
     case "$_state" in running|stopping) return 0 ;; esac
     return 1
 }
 
-new_run_dir() {   # $1 = spool; prints the new run directory
+# Returns 0 while the pane is doing something: a run in progress, or a batch still going.
+pane_is_busy() {   # $1 = pane dir
+    [ -n "$(read_state "$1/batch")" ] && return 0
+    run_is_active "$1"
+}
+
+# Returns 0 while the window's other pane is busy. One model at a time per window: two would
+# compete for the same memory, the GPU and the Neural Engine.
+other_pane_is_busy() {   # $1 = pane dir
+    local _spool="$(/usr/bin/dirname "$1")"
+    if [ "$PANE" = live ]; then
+        pane_is_busy "$_spool/recordings"
+    else
+        pane_is_busy "$_spool/live"
+    fi
+}
+
+new_run_dir() {   # $1 = pane dir; prints the new run directory
     local _now="$(/bin/date +%s)"
     local _name="run-$_now-$$"
     /bin/mkdir -p "$1/$_name"
@@ -385,8 +536,8 @@ new_run_dir() {   # $1 = spool; prints the new run directory
     printf '%s' "$1/$_name"
 }
 
-# Make a run directory current and remove every other one.
-activate_run_dir() {   # $1 = spool, $2 = run directory
+# Make a live run directory current and remove every other one.
+activate_run_dir() {   # $1 = pane dir, $2 = run directory
     local _name="$(/usr/bin/basename "$2")"
     write_state "$1/current" "$_name"
     local _old
@@ -395,16 +546,6 @@ activate_run_dir() {   # $1 = spool, $2 = run directory
         [ "$_old" = "$2" ] && continue
         /bin/rm -rf "$_old"
     done
-}
-
-clear_run() {   # $1 = spool
-    /bin/rm -f "$1/current"
-    local _old
-    for _old in "$1"/run-*; do
-        [ -d "$_old" ] && /bin/rm -rf "$_old"
-    done
-    printf '' | "$dialog" "$window_uuid" "$TRANSCRIPT_EDITOR" omc_set_value_from_stdin plain
-    /bin/rm -f "$1/actions.sig"
 }
 
 # Start `speech transcribe` for a file, in the background, writing its events into the run
@@ -481,7 +622,7 @@ format_seconds() {   # $1 = seconds
 # Only complete lines are consumed. The line speech is in the middle of writing has no newline
 # yet; `wc -l` counts newlines, so taking that many lines leaves it for the next tick, and it is
 # read whole then. speech.events.jq turns the batch into one record per event.
-process_events() {   # $1 = spool
+process_events() {   # $1 = pane dir
     local _run="$(current_run_dir "$1")"
     [ -n "$_run" ] || return 1
     [ -f "$_run/events.jsonl" ] || return 1
@@ -513,7 +654,9 @@ process_events() {   # $1 = spool
     fi
 
     local _kind="$(read_state "$_run/kind")"
-    local _name="$(/usr/bin/basename "$(read_state "$1/source.path")")"
+    local _name="$(/usr/bin/basename "$(read_state "$_run/source.path")")"
+    local _position="$(read_state "$_run/position")"
+    [ -n "$_position" ] && _name="$_name ($_position)"
     local _status=""
     : > "$_run/segments.new"
     local _type _id _text _percent _phase _message _segments _audio _wall _rtfx
@@ -535,7 +678,7 @@ process_events() {   # $1 = spool
                 ;;
             engine.ready)
                 if [ "$_kind" = live ]; then
-                    _status="Recording. Speak now."
+                    _status="Listening. Speak now."
                 else
                     _status="Transcribing $_name..."
                 fi
@@ -584,10 +727,24 @@ process_events() {   # $1 = spool
     return "$_merged"
 }
 
-# Rebuild the transcript from the segment table and push it into the window: one segment per
-# line, in id order, with the leading space some engines put before a segment trimmed. A partial
-# segment - words a live session may still revise - ends in " ...".
-render_transcript() {   # $1 = spool
+# The run whose transcript the pane shows. Live shows its current session. Recordings shows the
+# selected recording's, or with nothing selected, the one being transcribed.
+shown_run_dir() {   # $1 = pane dir
+    if [ "$PANE" = recordings ]; then
+        local _selected="$(read_state "$1/selected.key")"
+        if [ -n "$_selected" ]; then
+            printf '%s' "$1/items/$_selected"
+            return 0
+        fi
+    fi
+    current_run_dir "$1"
+}
+
+# Rebuild the current run's transcript from its segment table, and push it into the window when
+# that run is the one shown: one segment per line, in id order, with the leading space some
+# engines put before a segment trimmed. A partial segment - words a live session may still
+# revise - ends in " ...".
+render_transcript() {   # $1 = pane dir
     local _run="$(current_run_dir "$1")"
     [ -n "$_run" ] || return 0
     /usr/bin/awk -F'\t' '{
@@ -596,13 +753,14 @@ render_transcript() {   # $1 = spool
         if ($2 == "partial") text = text " ..."
         print text
     }' "$_run/segments.tsv" > "$_run/transcript.txt" 2>/dev/null
-    /bin/cat "$_run/transcript.txt" | "$dialog" "$window_uuid" "$TRANSCRIPT_EDITOR" omc_set_value_from_stdin plain
+    [ "$(shown_run_dir "$1")" = "$_run" ] || return 0
+    show_transcript_file "$_run/transcript.txt"
 }
 
 # Settle a run whose process has exited: read whatever it wrote last, then decide how it ended.
 # A process that exited without a `done` or an `error` event was stopped (if Stop was pressed)
 # or died, and its stderr is the only account of why.
-finish_if_exited() {   # $1 = spool
+finish_if_exited() {   # $1 = pane dir
     local _run="$(current_run_dir "$1")"
     [ -n "$_run" ] || return 0
     local _state="$(read_state "$_run/state")"
@@ -628,8 +786,8 @@ finish_if_exited() {   # $1 = spool
     esac
 }
 
-# Say once how a run ended.
-reflect_run_end() {   # $1 = spool
+# Say once how a live session ended.
+reflect_run_end() {   # $1 = pane dir
     local _run="$(current_run_dir "$1")"
     [ -n "$_run" ] || return 0
     [ -f "$_run/reflected" ] && return 0
@@ -656,81 +814,544 @@ reflect_run_end() {   # $1 = spool
     /bin/rm -f "$1/actions.sig"
 }
 
-# --- enabling controls -------------------------------------------------------------------------
-# One function decides every control's state from the spool, so a handler and the poller cannot
-# disagree. The poller calls it every tick; the signature file keeps a tick that changes nothing
-# from writing to the window, and a handler that changes state removes the signature.
+# --- the recordings list -------------------------------------------------------------------------
+# <pane>/list.tsv holds the recordings in the order they were added, one path per line. A path
+# with a tab or a line break in it cannot be kept in that file, or shown in the table, and is
+# refused. Batch state:
+#   queue          the paths still to transcribe, one per line
+#   batch          running | stopping; absent when no batch is going
+#   batch.model, batch.language, batch.total, batch.done   the batch's model, language and count
+#   batch.summary  how the last batch ended, shown until something changes
+#   selected.key   the item key of the selected recording
 
-refresh_actions() {   # $1 = spool
-    local _spool="$1"
-    local _source="$(read_state "$_spool/source.path")"
-    local _model="$(read_state "$_spool/model.id")"
+item_key() { /sbin/md5 -q -s "$1"; }   # $1 = recording path
+
+recording_count() {   # $1 = pane dir
+    local _count="$(/usr/bin/awk 'NF { n++ } END { print n + 0 }' "$1/list.tsv" 2>/dev/null)"
+    printf '%s' "${_count:-0}"
+}
+
+# Add paths to the list. Files only, each once. Prints how many were added.
+add_recordings() {   # $1 = pane dir, $2 = paths, one per line
+    : >> "$1/list.tsv"
+    local _added=0
+    local _path
+    while IFS= read -r _path; do
+        [ -n "$_path" ] || continue
+        [ -f "$_path" ] || continue
+        case "$_path" in *"$TAB"*) continue ;; esac
+        /usr/bin/grep -Fxq -- "$_path" "$1/list.tsv"
+        local _known=$?
+        [ "$_known" -eq 0 ] && continue
+        printf '%s\n' "$_path" >> "$1/list.tsv"
+        _added=$((_added + 1))
+    done <<EOF
+$2
+EOF
+    [ "$_added" -gt 0 ] && /bin/rm -f "$1/batch.summary"
+    printf '%s' "$_added"
+}
+
+remove_recording() {   # $1 = pane dir, $2 = path
+    # Matched literally: awk -v would read a backslash in the path as an escape and miss the row.
+    /usr/bin/grep -Fxv -- "$2" "$1/list.tsv" > "$1/list.tsv.tmp" 2>/dev/null
+    /bin/mv -f "$1/list.tsv.tmp" "$1/list.tsv"
+    local _key="$(item_key "$2")"
+    /bin/rm -rf "$1/items/$_key"
+    [ "$(read_state "$1/selected.key")" = "$_key" ] && /bin/rm -f "$1/selected.key"
+    /bin/rm -f "$1/batch.summary"
+}
+
+# A dropped item is either a path or a file URL. Prints the path.
+path_from_drop_item() {   # $1 = item
+    case "$1" in
+        file://*)
+            # Drop the scheme and an optional localhost host, then decode %XX escapes. Backslashes
+            # are doubled first so printf %b cannot read one in the name as an escape.
+            local _path="${1#file://}"
+            _path="${_path#localhost}"
+            _path="$(printf '%s' "$_path" | /usr/bin/sed 's/\\/\\\\/g; s/%\([0-9A-Fa-f][0-9A-Fa-f]\)/\\x\1/g')"
+            printf '%b' "$_path"
+            ;;
+        *)
+            printf '%s' "$1"
+            ;;
+    esac
+}
+
+# What the Status column says about a recording.
+recording_status() {   # $1 = pane dir, $2 = path
+    if [ -f "$1/queue" ]; then
+        /usr/bin/grep -Fxq -- "$2" "$1/queue"
+        local _queued=$?
+        if [ "$_queued" -eq 0 ]; then
+            printf 'Waiting'
+            return 0
+        fi
+    fi
+    local _item="$1/items/$(item_key "$2")"
+    [ -d "$_item" ] || return 0
+    local _state="$(read_state "$_item/state")"
+    case "$_state" in
+        running)  printf 'Transcribing...' ;;
+        stopping) printf 'Stopping...' ;;
+        stopped)  printf 'Stopped' ;;
+        failed)   printf 'Failed: %s' "$(/usr/bin/head -1 "$_item/error.txt" 2>/dev/null)" ;;
+        done)
+            if [ -s "$_item/saved.name" ]; then
+                printf 'Saved as %s' "$(read_state "$_item/saved.name")"
+            elif [ -s "$_item/not_saved.txt" ]; then
+                printf 'Not saved: %s' "$(read_state "$_item/not_saved.txt")"
+            else
+                printf 'Transcribed'
+            fi
+            ;;
+    esac
+}
+
+# Push the list into the table when a row changed, then put the selection back: a table whose
+# rows are replaced cannot be trusted to keep it. Each row is name, status and the path, which
+# the table keeps as a hidden third column. The rows are built under a name of this process's
+# own: a handler and the poller can render at the same time.
+render_recordings_table() {   # $1 = pane dir
+    local _rows="$1/rows.tsv.tmp.$$"
+    : > "$_rows"
+    local _path
+    while IFS= read -r _path; do
+        [ -n "$_path" ] || continue
+        printf '%s\t%s\t%s\n' "$(/usr/bin/basename "$_path")" "$(recording_status "$1" "$_path")" "$_path" >> "$_rows"
+    done < "$1/list.tsv"
+    /usr/bin/cmp -s "$_rows" "$1/rows.tsv"
+    local _same=$?
+    if [ "$_same" -eq 0 ]; then
+        /bin/rm -f "$_rows"
+        return 0
+    fi
+    /bin/mv -f "$_rows" "$1/rows.tsv"
+    quiet_begin "$1" table
+    "$dialog" "$window_uuid" "$REC_TABLE" omc_table_set_rows_from_stdin < "$1/rows.tsv"
+    local _selected="$(read_state "$1/selected.key")"
+    [ -n "$_selected" ] || return 0
+    _path="$(read_state "$1/items/$_selected/source.path")"
+    [ -n "$_path" ] || _path="$(selected_recording_path "$1")"
+    [ -n "$_path" ] && "$dialog" "$window_uuid" "$REC_TABLE" omc_select_row_with_content "$_path" 3
+    return 0
+}
+
+# The path of the selected recording, found by its key in the list; empty when none.
+selected_recording_path() {   # $1 = pane dir
+    local _selected="$(read_state "$1/selected.key")"
+    [ -n "$_selected" ] || return 0
+    local _path
+    while IFS= read -r _path; do
+        [ -n "$_path" ] || continue
+        if [ "$(item_key "$_path")" = "$_selected" ]; then
+            printf '%s' "$_path"
+            return 0
+        fi
+    done < "$1/list.tsv"
+}
+
+# --- a batch of recordings ---------------------------------------------------------------------
+# Transcribe queues every recording in the list with the pane's model and language. The poller
+# does the rest, one recording at a time: advance_batch settles the recording that finished,
+# starts the next, and says how the batch ended.
+
+start_batch() {   # $1 = pane dir
+    # A new batch supersedes what the last one left: every recording in the list is transcribed
+    # again, and a row still showing the previous result would read as this batch's.
+    /bin/rm -rf "$1/items"
+    /usr/bin/awk 'NF' "$1/list.tsv" > "$1/queue" 2>/dev/null
+    write_state "$1/batch.model" "$(read_state "$1/model.id")"
+    write_state "$1/batch.language" "$(read_state "$1/language.tag")"
+    write_state "$1/batch.total" "$(recording_count "$1")"
+    write_state "$1/batch.done" 0
+    /bin/rm -f "$1/batch.summary" "$1/current"
+    write_state "$1/batch" running
+}
+
+# Start transcribing one recording. A recording that is gone, or cannot be fingerprinted, fails
+# here without starting speech; the next tick settles it like any other.
+start_item() {   # $1 = pane dir, $2 = path
+    local _key="$(item_key "$2")"
+    local _item="$1/items/$_key"
+    /bin/rm -rf "$_item"
+    /bin/mkdir -p "$_item"
+    local _mkdir_status=$?
+    [ "$_mkdir_status" -eq 0 ] || return 1
+    local _model="$(read_state "$1/batch.model")"
+    local _language="$(read_state "$1/batch.language")"
+    local _done="$(read_state "$1/batch.done")"
+    case "$_done" in ''|*[!0-9]*) _done=0 ;; esac
+    _done=$((_done + 1))
+    write_state "$1/batch.done" "$_done"
+
+    : > "$_item/segments.tsv"
+    write_state "$_item/kind" file
+    write_state "$_item/source.path" "$2"
+    write_state "$_item/model" "$_model"
+    write_state "$_item/language" "$_language"
+    local _total="$(read_state "$1/batch.total")"
+    [ "${_total:-1}" -gt 1 ] && write_state "$_item/position" "$_done of $_total"
+
+    if [ ! -f "$2" ]; then
+        write_state "$_item/error.txt" "The recording is no longer there."
+        write_state "$_item/state" failed
+        write_state "$1/current" "items/$_key"
+        return 0
+    fi
+    local _fp
+    _fp="$(fingerprint_of "$2")"
+    local _fp_status=$?
+    if [ "$_fp_status" -ne 0 ]; then
+        write_state "$_item/error.txt" "The recording could not be read."
+        write_state "$_item/state" failed
+        write_state "$1/current" "items/$_key"
+        return 0
+    fi
+    write_state "$_item/recording.fp" "$_fp"
+    write_state "$_item/state" running
+    local _pid="$(spawn_transcribe "$_item" "$2" "$_model" "$_language")"
+    write_state "$_item/speech.pid" "$_pid"
+    # The item becomes current only once its pid is on disk: the poller settles a running run
+    # whose process it cannot find as failed.
+    write_state "$1/current" "items/$_key"
+    [ -n "$(read_state "$1/selected.key")" ] || show_transcript_file ""
+}
+
+# The name a transcript gets beside its recording: the recording's name without its extension,
+# then the model, so transcripts from different models sit side by side.
+transcript_name_for() {   # $1 = recording path, $2 = model id
+    local _stem="$(/usr/bin/basename "$1")"
+    case "$_stem" in
+        ?*.*) _stem="${_stem%.*}" ;;
+    esac
+    local _model="$(printf '%s' "$2" | /usr/bin/tr '/:' '--')"
+    printf '%s - %s.txt' "$_stem" "$_model"
+}
+
+# Write a finished item's transcript beside its recording, as plain text through `speech export`.
+# An existing file of that name is replaced only when Speech wrote it and neither it nor the
+# recording has changed since; anything else is left alone and the reason recorded, and the
+# transcript stays in the window, where Export and Copy still reach it.
+save_transcript() {   # $1 = item dir
+    local _source="$(read_state "$1/source.path")"
+    local _name="$(transcript_name_for "$_source" "$(read_state "$1/model")")"
+    local _dir="$(/usr/bin/dirname "$_source")"
+    local _dest="$_dir/$_name"
+
+    "$SPEECH_BIN" export "$1/result.json" --format txt --output "$1/transcript.export.txt" > /dev/null 2> "$1/export.err"
+    local _export_status=$?
+    if [ "$_export_status" -ne 0 ] || [ ! -f "$1/transcript.export.txt" ]; then
+        write_state "$1/not_saved.txt" "the transcript could not be converted to text ($(/usr/bin/head -1 "$1/export.err" 2>/dev/null))."
+        return 0
+    fi
+
+    local _recording_fp
+    _recording_fp="$(fingerprint_of "$_source")"
+    local _fp_status=$?
+    if [ "$_fp_status" -ne 0 ] || [ "$_recording_fp" != "$(read_state "$1/recording.fp")" ]; then
+        write_state "$1/not_saved.txt" "the recording changed while it was being transcribed."
+        return 0
+    fi
+
+    if [ -e "$_dest" ] || [ -L "$_dest" ]; then
+        if [ -L "$_dest" ] || [ ! -f "$_dest" ]; then
+            write_state "$1/not_saved.txt" "$_name exists and is not a plain file."
+            return 0
+        fi
+        local _record="$(/usr/bin/xattr -p "$TRANSCRIPT_XATTR" "$_dest" 2>/dev/null)"
+        local _tag _recorded_recording _recorded_transcript _extra
+        read -r _tag _recorded_recording _recorded_transcript _extra <<EOF
+$_record
+EOF
+        if [ "$_tag" != speech-transcript-v1 ] || [ -z "$_recorded_transcript" ]; then
+            write_state "$1/not_saved.txt" "$_name already exists and was not written by Speech."
+            return 0
+        fi
+        local _existing_fp
+        _existing_fp="$(fingerprint_of "$_dest")"
+        _fp_status=$?
+        if [ "$_fp_status" -ne 0 ] || [ "$_existing_fp" != "$_recorded_transcript" ]; then
+            write_state "$1/not_saved.txt" "$_name was edited after Speech wrote it."
+            return 0
+        fi
+        if [ "$_recorded_recording" != "$_recording_fp" ]; then
+            write_state "$1/not_saved.txt" "$_name was written from a different version of the recording."
+            return 0
+        fi
+    fi
+
+    # Written under a hidden name in the same folder, stamped, then renamed over the destination,
+    # so the name never holds half a transcript or one without its record.
+    local _tmp="$_dir/.$_name.speech-$$"
+    /bin/cp -f "$1/transcript.export.txt" "$_tmp" 2>/dev/null
+    local _cp_status=$?
+    if [ "$_cp_status" -ne 0 ]; then
+        /bin/rm -f "$_tmp"
+        write_state "$1/not_saved.txt" "Speech cannot write into $_dir."
+        return 0
+    fi
+    local _transcript_fp
+    _transcript_fp="$(fingerprint_of "$_tmp")"
+    _fp_status=$?
+    if [ "$_fp_status" -ne 0 ]; then
+        /bin/rm -f "$_tmp"
+        write_state "$1/not_saved.txt" "the transcript could not be fingerprinted."
+        return 0
+    fi
+    /usr/bin/xattr -w "$TRANSCRIPT_XATTR" "speech-transcript-v1 $_recording_fp $_transcript_fp" "$_tmp" 2>/dev/null
+    local _xattr_status=$?
+    if [ "$_xattr_status" -ne 0 ]; then
+        /bin/rm -f "$_tmp"
+        write_state "$1/not_saved.txt" "the file system in $_dir does not keep the record Speech needs to replace it safely later."
+        return 0
+    fi
+    /bin/mv -f "$_tmp" "$_dest"
+    local _mv_status=$?
+    if [ "$_mv_status" -ne 0 ]; then
+        /bin/rm -f "$_tmp"
+        write_state "$1/not_saved.txt" "Speech could not put $_name in place."
+        return 0
+    fi
+    write_state "$1/saved.name" "$_name"
+}
+
+# Settle the recording that finished, start the next one, or say how the batch ended. Called by
+# the poller after finish_if_exited, so a current item that is no longer active has exited and
+# been read to the end.
+advance_batch() {   # $1 = pane dir
+    local _batch="$(read_state "$1/batch")"
+    [ -n "$_batch" ] || return 0
+    local _run="$(current_run_dir "$1")"
+    if [ -n "$_run" ]; then
+        case "$(read_state "$_run/state")" in running|stopping) return 0 ;; esac
+        if [ ! -f "$_run/settled" ]; then
+            [ "$(read_state "$_run/state")" = done ] && save_transcript "$_run"
+            : > "$_run/settled"
+        fi
+        /bin/rm -f "$1/current"
+    fi
+
+    local _next=""
+    [ "$_batch" = running ] && _next="$(/usr/bin/head -1 "$1/queue" 2>/dev/null)"
+    if [ -z "$_next" ]; then
+        /bin/rm -f "$1/queue" "$1/batch"
+        write_state "$1/batch.summary" "$(batch_summary "$1" "$_batch")"
+        set_status "$(read_state "$1/batch.summary")"
+        /bin/rm -f "$1/actions.sig"
+        return 0
+    fi
+    /usr/bin/tail -n +2 "$1/queue" > "$1/queue.tmp"
+    /bin/mv -f "$1/queue.tmp" "$1/queue"
+    start_item "$1" "$_next"
+    set_status "Transcribing $(/usr/bin/basename "$_next")..."
+    /bin/rm -f "$1/actions.sig"
+
+    # Stop can land between the batch being read as running above and the recording starting, and
+    # then finds no process to signal. Catch it here, or the recording would run to its end.
+    [ "$(read_state "$1/batch")" = stopping ] || return 0
+    _run="$(current_run_dir "$1")"
+    [ -n "$_run" ] || return 0
+    [ "$(read_state "$_run/state")" = running ] || return 0
+    write_state "$_run/state" stopping
+    signal_speech_pid "$(read_state "$_run/speech.pid")" TERM
+}
+
+# How a batch ended, counted over the list.
+batch_summary() {   # $1 = pane dir, $2 = running | stopping
+    local _saved=0 _not_saved=0 _failed=0
+    local _path _item
+    while IFS= read -r _path; do
+        [ -n "$_path" ] || continue
+        _item="$1/items/$(item_key "$_path")"
+        [ -d "$_item" ] || continue
+        case "$(read_state "$_item/state")" in
+            done)
+                if [ -s "$_item/saved.name" ]; then _saved=$((_saved + 1)); else _not_saved=$((_not_saved + 1)); fi
+                ;;
+            failed) _failed=$((_failed + 1)) ;;
+        esac
+    done < "$1/list.tsv"
+    local _text
+    if [ "$2" = stopping ]; then
+        _text="Stopped."
+    else
+        _text="Done."
+    fi
+    _text="$_text $_saved saved beside the recording"
+    [ "$_saved" = 1 ] || _text="$_text""s"
+    [ "$_not_saved" -gt 0 ] && _text="$_text, $_not_saved not saved"
+    [ "$_failed" -gt 0 ] && _text="$_text, $_failed failed"
+    [ "$_not_saved" -gt 0 ] || [ "$_failed" -gt 0 ] && _text="$_text - the Status column says why"
+    printf '%s.' "$_text"
+}
+
+# --- one poller tick per pane --------------------------------------------------------------------
+# The poller runs these every half second; the tests run them as one tick.
+
+poll_live() {   # $1 = spool
+    use_pane live
+    local _pane="$1/live"
+    [ -d "$_pane" ] || return 0
+    local _run="$(current_run_dir "$_pane")"
+    if [ -n "$_run" ]; then
+        process_events "$_pane"
+        local _changed=$?
+        [ "$_changed" -eq 0 ] && render_transcript "$_pane"
+        finish_if_exited "$_pane"
+        reflect_run_end "$_pane"
+    fi
+    refresh_live_actions "$_pane"
+}
+
+poll_recordings() {   # $1 = spool
+    use_pane recordings
+    local _pane="$1/recordings"
+    [ -d "$_pane" ] || return 0
+    local _run="$(current_run_dir "$_pane")"
+    if [ -n "$_run" ]; then
+        process_events "$_pane"
+        local _changed=$?
+        [ "$_changed" -eq 0 ] && render_transcript "$_pane"
+        finish_if_exited "$_pane"
+    fi
+    advance_batch "$_pane"
+    [ -f "$_pane/list.tsv" ] && render_recordings_table "$_pane"
+    refresh_recordings_actions "$_pane"
+}
+
+# --- enabling controls -------------------------------------------------------------------------
+# One function per pane decides every control's state from the spool, so a handler and the poller
+# cannot disagree. The poller calls them every tick; the signature file keeps a tick that changes
+# nothing from writing to the window, and a handler that changes state removes the signature.
+
+refresh_live_actions() {   # $1 = pane dir
+    use_pane live
+    local _pane="$1"
+    local _model="$(read_state "$_pane/model.id")"
     local _models_ready=0
-    [ -f "$_spool/models.tsv" ] && _models_ready=1
-    local _run="$(current_run_dir "$_spool")"
+    [ -f "$_pane/models.tsv" ] && _models_ready=1
+    local _run="$(current_run_dir "$_pane")"
     local _state=""
     [ -n "$_run" ] && _state="$(read_state "$_run/state")"
 
     local _active=0
     case "$_state" in running|stopping) _active=1 ;; esac
-    local _can_transcribe=0
-    [ "$_active" = 0 ] && [ -n "$_source" ] && [ -f "$_source" ] && [ -n "$_model" ] && _can_transcribe=1
-    local _live_model=1
-    if [ -n "$_model" ]; then
-        model_is_live "$_spool" "$_model"
-        _live_model=$?
-    fi
-    local _can_record=0
-    [ "$_active" = 0 ] && [ -n "$_model" ] && [ "$_live_model" = 0 ] && _can_record=1
+    other_pane_is_busy "$_pane"
+    local _other_status=$?
+    local _other_busy=0
+    [ "$_other_status" -eq 0 ] && _other_busy=1
+    local _can_live=0
+    [ "$_active" = 0 ] && [ "$_other_busy" = 0 ] && [ -n "$_model" ] && _can_live=1
     local _can_stop=0
     [ "$_state" = running ] && _can_stop=1
     local _can_export=0
     [ "$_active" = 0 ] && [ -n "$_run" ] && [ -s "$_run/result.json" ] && _can_export=1
     local _can_copy=0
     [ "$_active" = 0 ] && [ -n "$_run" ] && [ -s "$_run/transcript.txt" ] && _can_copy=1
-    local _can_choose=1
-    [ "$_active" = 1 ] && _can_choose=0
     local _can_pick=0
     [ "$_active" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
 
-    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_choose$_can_pick|$_models_ready|$_state|$_source|$_model"
-    [ "$_signature" = "$(read_state "$_spool/actions.sig")" ] && return 0
-    write_state "$_spool/actions.sig" "$_signature"
+    local _signature="$_can_live$_can_stop$_can_export$_can_copy$_can_pick|$_models_ready|$_state|$_other_busy|$_model"
+    [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
+    write_state "$_pane/actions.sig" "$_signature"
 
-    set_enabled "$TRANSCRIBE_BTN" "$_can_transcribe"
-    set_enabled "$RECORD_BTN" "$_can_record"
-    set_enabled "$STOP_BTN" "$_can_stop"
-    set_enabled "$EXPORT_MENU" "$_can_export"
-    set_enabled "$COPY_BTN" "$_can_copy"
-    set_enabled "$CHOOSE_BTN" "$_can_choose"
-    set_enabled "$MODEL_PICKER" "$_can_pick"
-    set_enabled "$LANGUAGE_PICKER" "$_can_pick"
+    set_enabled "$LIVE_BTN" "$_can_live"
+    set_enabled "$LIVE_STOP_BTN" "$_can_stop"
+    set_enabled "$LIVE_EXPORT_MENU" "$_can_export"
+    set_enabled "$LIVE_COPY_BTN" "$_can_copy"
+    set_enabled "$LIVE_MODEL_PICKER" "$_can_pick"
+    set_enabled "$LIVE_LANGUAGE_PICKER" "$_can_pick"
 
-    # With no run to report on, the status line says what the window is waiting for.
+    # With no session to report on, the status line says what the tab is waiting for.
     [ -z "$_run" ] || return 0
     [ "$_models_ready" = 1 ] || return 0
-    local _label="$(tsv_field "$_spool/models.tsv" "$_model" 2)"
+    if [ -z "$_model" ]; then
+        set_status "No speech model on this Mac can transcribe live yet."
+    elif [ "$_other_busy" = 1 ]; then
+        set_status "Recordings are being transcribed. Live is available when they are done."
+    else
+        set_status "Press Live to transcribe the microphone with $(tsv_field "$_pane/models.tsv" "$_model" 2)."
+    fi
+}
+
+refresh_recordings_actions() {   # $1 = pane dir
+    use_pane recordings
+    local _pane="$1"
+    local _model="$(read_state "$_pane/model.id")"
+    local _models_ready=0
+    [ -f "$_pane/models.tsv" ] && _models_ready=1
+    local _batch="$(read_state "$_pane/batch")"
+    local _count="$(recording_count "$_pane")"
+    local _selected="$(read_state "$_pane/selected.key")"
+    local _item=""
+    local _item_state=""
+    if [ -n "$_selected" ] && [ -d "$_pane/items/$_selected" ]; then
+        _item="$_pane/items/$_selected"
+        _item_state="$(read_state "$_item/state")"
+    fi
+
+    local _active=0
+    [ -n "$_batch" ] && _active=1
+    other_pane_is_busy "$_pane"
+    local _other_status=$?
+    local _other_busy=0
+    [ "$_other_status" -eq 0 ] && _other_busy=1
+    local _can_transcribe=0
+    [ "$_active" = 0 ] && [ "$_other_busy" = 0 ] && [ "$_count" -gt 0 ] && [ -n "$_model" ] && _can_transcribe=1
+    local _can_stop=0
+    [ "$_batch" = running ] && _can_stop=1
+    local _item_finished=0
+    case "$_item_state" in done|stopped|failed) _item_finished=1 ;; esac
+    local _can_export=0
+    [ "$_item_finished" = 1 ] && [ -s "$_item/result.json" ] && _can_export=1
+    local _can_copy=0
+    [ "$_item_finished" = 1 ] && [ -s "$_item/transcript.txt" ] && _can_copy=1
+    local _can_remove=0
+    [ "$_active" = 0 ] && [ -n "$_selected" ] && _can_remove=1
+    local _can_pick=0
+    [ "$_active" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
+
+    local _signature="$_can_transcribe$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_models_ready|$_batch|$_other_busy|$_count|$_selected|$_item_state|$_model"
+    [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
+    write_state "$_pane/actions.sig" "$_signature"
+
+    set_enabled "$REC_TRANSCRIBE_BTN" "$_can_transcribe"
+    set_enabled "$REC_STOP_BTN" "$_can_stop"
+    set_enabled "$REC_EXPORT_MENU" "$_can_export"
+    set_enabled "$REC_COPY_BTN" "$_can_copy"
+    set_enabled "$REC_REMOVE_BTN" "$_can_remove"
+    set_enabled "$REC_MODEL_PICKER" "$_can_pick"
+    set_enabled "$REC_LANGUAGE_PICKER" "$_can_pick"
+
+    # With no batch to report on and no summary of the last one, the status line says what the
+    # tab is waiting for.
+    [ "$_active" = 0 ] || return 0
+    [ -f "$_pane/batch.summary" ] && return 0
+    [ "$_models_ready" = 1 ] || return 0
+    local _label="$(tsv_field "$_pane/models.tsv" "$_model" 2)"
     if [ -z "$_model" ]; then
         set_status "No speech model can run on this Mac yet."
-    elif [ -n "$_source" ]; then
-        set_status "Ready to transcribe $(/usr/bin/basename "$_source") with $_label."
-    elif [ "$_can_record" = 1 ]; then
-        set_status "Choose or drop a recording to transcribe, or press Record to transcribe live."
+    elif [ "$_count" = 0 ]; then
+        set_status "Drop recordings here or add them, then press Transcribe. Each transcript is saved beside its recording."
+    elif [ "$_other_busy" = 1 ]; then
+        set_status "A live session is running. Stop it to transcribe recordings."
+    elif [ "$_count" = 1 ]; then
+        set_status "Ready to transcribe 1 recording with $_label."
     else
-        set_status "Choose or drop a recording to transcribe. $_label cannot transcribe live."
+        set_status "Ready to transcribe $_count recordings with $_label."
     fi
 }
 
 # --- export ------------------------------------------------------------------------------------
 
-# Convert the finished transcript to a format with `speech export`, to the path the Save panel
+# Convert a finished transcript to a format with `speech export`, to the path the Save panel
 # returned. The extension is added when the name typed has none of its own.
-export_transcript() {   # $1 = format (txt, srt, vtt, json)
+export_transcript() {   # $1 = format (txt, srt, vtt, json), $2 = run dir
     local _dest="${OMC_DLG_SAVE_AS_PATH:-}"
     [ -n "$_dest" ] || return 0
-    local _spool="$(spool_dir_for "$window_uuid")"
-    local _run="$(current_run_dir "$_spool")"
-    if [ -z "$_run" ] || [ ! -s "$_run/result.json" ]; then
+    if [ -z "$2" ] || [ ! -s "$2/result.json" ]; then
         present_alert "Nothing to export" "Transcribe a recording first."
         return 0
     fi
@@ -738,10 +1359,10 @@ export_transcript() {   # $1 = format (txt, srt, vtt, json)
         *."$1") ;;
         *) _dest="$_dest.$1" ;;
     esac
-    "$SPEECH_BIN" export "$_run/result.json" --format "$1" --output "$_dest" > /dev/null 2> "$_run/export.err"
+    "$SPEECH_BIN" export "$2/result.json" --format "$1" --output "$_dest" > /dev/null 2> "$2/export.err"
     local _export_status=$?
     if [ "$_export_status" -ne 0 ]; then
-        present_alert "Could not export the transcript" "$(/usr/bin/head -3 "$_run/export.err")"
+        present_alert "Could not export the transcript" "$(/usr/bin/head -3 "$2/export.err")"
         return 0
     fi
     set_status "Exported to $(/usr/bin/basename "$_dest")."

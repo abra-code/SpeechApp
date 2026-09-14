@@ -1,7 +1,7 @@
 #!/bin/bash
 # update_speech.sh
-# Assemble the git-excluded runtime pieces of Speech.app from the sibling `speech` repository,
-# then thin, deep-sign and verify the bundle.
+# Assemble the git-excluded runtime pieces of Speech.app from the sibling `speech` and `replay`
+# repositories, then thin, deep-sign and verify the bundle.
 #
 # The SpeechApp repository keeps no copy of anything the speech repository owns. Everything the
 # bundle needs from it is copied here, on every run:
@@ -13,11 +13,16 @@
 #   Contents/Support/*.LICENSE, *NOTICES*     the notices that must travel with those binaries
 #   Contents/Resources/Reference/             the published measurements and the model family
 #                                             pages, shown before this Mac has measured anything
+# and from the replay repository:
+#   Contents/Support/fingerprint              the file fingerprint tool, which tells a transcript
+#                                             Speech saved and nobody touched from one it must not
+#                                             replace
 #
 # Steps: (1) build speech with its own build.sh (--skip-build reuses what is already built),
 # (2) deploy the pieces above, (3) refuse to sign a bundle whose binaries lack their notices,
 # (4) thin every Mach-O to arm64, (5) deep-sign with codesign_applet.sh, (6) verify the deployed
-# tool launches and finds its catalog.
+# tools launch and speech finds its catalog. fingerprint is never built here: its universal
+# release build comes from replay's own build.
 #
 # Building speech runs SwiftPM, which fails under a command sandbox with an error that blames
 # Package.swift. Run this script with the sandbox off.
@@ -31,6 +36,7 @@ DO_BUILD="yes"
 DO_CODESIGN="yes"
 WITH_MLX="yes"
 SPEECH_REPO="${SPEECH_REPO:-}"
+REPLAY_REPO="${REPLAY_REPO:-}"
 
 SCRIPT_DIR="$(cd "$(/usr/bin/dirname "$0")" >/dev/null 2>&1 && pwd)"
 
@@ -39,13 +45,15 @@ while [ $# -gt 0 ]; do
         --skip-build) DO_BUILD="no" ;;
         --without-mlx) WITH_MLX="no" ;;
         --speech-repo=*) SPEECH_REPO="${1#*=}" ;;
+        --replay-repo=*) REPLAY_REPO="${1#*=}" ;;
         --identity=*) SIGNING_IDENTITY="${1#*=}" ;;
         --no-codesign) DO_CODESIGN="no" ;;
         --help)
-            echo "Usage: $0 [--skip-build] [--without-mlx] [--speech-repo=PATH] [--identity=CERT] [--no-codesign]"
+            echo "Usage: $0 [--skip-build] [--without-mlx] [--speech-repo=PATH] [--replay-repo=PATH] [--identity=CERT] [--no-codesign]"
             echo "  --skip-build     deploy what ../speech/build already holds instead of building it"
             echo "  --without-mlx    leave speech-mlx out of the bundle (the mlx.* rows then report unavailable)"
             echo "  --speech-repo    the speech repository (default: \$SPEECH_REPO, then ../speech)"
+            echo "  --replay-repo    the replay repository, for fingerprint (default: \$REPLAY_REPO, then ../replay)"
             echo "  --identity       codesign identity (default: ad-hoc)"
             exit 0 ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -69,9 +77,20 @@ fi
 SPEECH_REPO="$(cd "$SPEECH_REPO" && pwd)"
 BUILD_DIR="$SPEECH_REPO/build"
 
+# Locate the replay repository the same way. Its fingerprint build is checked before anything is
+# built or copied, so a missing tool stops the run while the bundle is still untouched.
+[ -n "$REPLAY_REPO" ] || REPLAY_REPO="$SCRIPT_DIR/../replay"
+[ -d "$REPLAY_REPO" ] || fail "replay repository not found at $REPLAY_REPO. Clone it beside SpeechApp or pass --replay-repo=PATH."
+REPLAY_REPO="$(cd "$REPLAY_REPO" && pwd)"
+FINGERPRINT_SRC="$REPLAY_REPO/build/Release/fingerprint"
+FINGERPRINT_LICENSE_SRC="$REPLAY_REPO/LICENSE"
+[ -x "$FINGERPRINT_SRC" ] || fail "No fingerprint at $FINGERPRINT_SRC - build it in the replay repository first."
+[ -s "$FINGERPRINT_LICENSE_SRC" ] || fail "No $FINGERPRINT_LICENSE_SRC - fingerprint's notice has to ship with it."
+
 echo
 echo "==== Updating Speech.app ===="
 echo "  speech repo : $SPEECH_REPO"
+echo "  replay repo : $REPLAY_REPO"
 echo "  deploy to   : $SUPPORT_DIR"
 echo
 
@@ -162,6 +181,11 @@ replace_file "$FLUIDAUDIO_LICENSE_SRC" "$SUPPORT_DIR/FluidAudio.LICENSE"
 replace_file "$TRANSCRIBE_LICENSE_SRC" "$SUPPORT_DIR/transcribe.cpp.LICENSE"
 replace_file "$TRANSCRIBE_NOTICES_SRC" "$SUPPORT_DIR/transcribe.cpp.THIRD-PARTY-LICENSES.md"
 
+replace_file "$FINGERPRINT_SRC" "$SUPPORT_DIR/fingerprint"
+/bin/chmod +x "$SUPPORT_DIR/fingerprint"
+replace_file "$FINGERPRINT_LICENSE_SRC" "$SUPPORT_DIR/fingerprint.LICENSE"
+echo "  ${GREEN}Deployed${RESET} fingerprint"
+
 # The MLX helper is optional in the speech repository too (its own build script, its own
 # toolchain), so a missing one is a warning. --without-mlx removes a previously deployed copy,
 # so the flag means what it says rather than "leave whatever an earlier run put there".
@@ -219,11 +243,12 @@ require_license "$SUPPORT_DIR/speech" "$SUPPORT_DIR/FluidAudio.LICENSE"
 require_license "$SUPPORT_DIR/CTranscribe.framework" "$SUPPORT_DIR/transcribe.cpp.LICENSE"
 require_license "$SUPPORT_DIR/CTranscribe.framework" "$SUPPORT_DIR/transcribe.cpp.THIRD-PARTY-LICENSES.md"
 require_license "$SUPPORT_DIR/speech-mlx" "$SUPPORT_DIR/speech-mlx-THIRD-PARTY-NOTICES.txt"
+require_license "$SUPPORT_DIR/fingerprint" "$SUPPORT_DIR/fingerprint.LICENSE"
 
 # -- 4. Thin to arm64 --------------------------------------------------------------------------
-# speech is arm64 only (FluidAudio does not build for x86_64), so the OMC executable and
-# Abracode.framework, which arrive universal from the AppletBuilder template, are thinned to
-# match. Already-thin files are left alone, so a re-run is a no-op.
+# speech is arm64 only (FluidAudio does not build for x86_64), so the OMC executable,
+# Abracode.framework and fingerprint, which arrive universal, are thinned to match. Already-thin
+# files are left alone, so a re-run is a no-op.
 THIN_LIST="$REFERENCE_STAGE/thin.list"
 /usr/bin/find "$APP_BUNDLE" -type f > "$THIN_LIST"
 find_status=$?
@@ -274,7 +299,13 @@ catalog_status=$?
 [ "$catalog_status" -eq 0 ] || fail "The deployed speech could not read its catalog (exit $catalog_status)"
 first_row="$(printf '%s' "$catalog_json" | /usr/bin/plutil -extract rows.0.id raw -o - - 2>/dev/null)"
 [ -n "$first_row" ] || fail "The deployed speech reported a catalog with no rows"
-echo "  ${GREEN}Verify OK${RESET}: $version, catalog readable"
+fingerprint_version="$("$SUPPORT_DIR/fingerprint" -V 2>&1)"
+fingerprint_status=$?
+case "$fingerprint_version" in
+    "fingerprint "*) ;;
+    *) fail "The deployed fingerprint did not report its version (exit $fingerprint_status): $fingerprint_version" ;;
+esac
+echo "  ${GREEN}Verify OK${RESET}: $version, $fingerprint_version, catalog readable"
 
 echo
 echo "  ${GREEN}Done.${RESET} Speech.app is ready."

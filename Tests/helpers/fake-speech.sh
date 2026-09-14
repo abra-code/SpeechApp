@@ -3,11 +3,12 @@
 # invocation, then answers the verbs the applet uses from fixtures, so no model loads and no
 # microphone opens.
 #
-#   FAKE_SPEECH_FIXTURES  directory holding catalog.json, transcribe.events.jsonl,
-#                         transcribe.result.json (required)
-#   FAKE_SPEECH_LOG       file each invocation's arguments are appended to, one line per call
-#   FAKE_SPEECH_MODE      transcribe behavior: ok (default), fail (an error event, exit 1), or
-#                         hang (one progress event, then wait to be signaled)
+#   FAKE_SPEECH_FIXTURES   directory holding catalog.json, transcribe.events.jsonl,
+#                          transcribe.result.json (required)
+#   FAKE_SPEECH_LOG        file each invocation's arguments are appended to, one line per call
+#   FAKE_SPEECH_MODE       transcribe behavior: ok (default), fail (an error event, exit 1), or
+#                          hang (one progress event, then wait to be signaled)
+#   FAKE_SPEECH_FAIL_FILE  a recording that fails as in fail mode while every other one succeeds
 #
 # In hang mode the process replaces itself with sleep under its own name (exec -a), so its argv
 # still starts with the SPEECH_BIN path. That is what the applet's argv check requires before it
@@ -32,6 +33,7 @@ case "$verb" in
         exit 0
         ;;
     transcribe)
+        input="$1"
         output=""
         while [ $# -gt 0 ]; do
             case "$1" in
@@ -39,7 +41,9 @@ case "$verb" in
             esac
             shift
         done
-        case "${FAKE_SPEECH_MODE:-ok}" in
+        mode="${FAKE_SPEECH_MODE:-ok}"
+        [ -n "${FAKE_SPEECH_FAIL_FILE:-}" ] && [ "$input" = "$FAKE_SPEECH_FAIL_FILE" ] && mode=fail
+        case "$mode" in
             fail)
                 printf '%s\n' '{"code":"unsupported_format","message":"cannot decode the recording","t":0.01,"type":"error"}'
                 printf 'speech transcribe: cannot decode the recording\n' >&2
@@ -77,6 +81,7 @@ case "$verb" in
         exit 0
         ;;
     export)
+        input="$1"
         format=""
         output=""
         while [ $# -gt 0 ]; do
@@ -90,7 +95,7 @@ case "$verb" in
             printf 'fake-speech: export without --output\n' >&2
             exit 2
         fi
-        printf 'exported as %s\n' "$format" > "$output"
+        printf 'Transcript from %s as %s\n' "$input" "$format" > "$output"
         exit 0
         ;;
 esac

@@ -1,19 +1,15 @@
 #!/bin/sh
-# 20-live.test.sh - live transcription from the microphone: Record starts `speech stream` with a
-# stdin holder, Stop ends the session with "q" and keeps its transcript, and a closed window or
-# a dead app ends it through end of input. The fake speech (helpers/fake-speech.sh) plays the
-# session; the real stdin holder runs.
+# 20-live.test.sh - the Live tab: Live starts `speech stream` with a stdin holder, Stop ends the
+# session with "q" and keeps its transcript, and a closed window or a dead app ends it through end
+# of input. The fake speech (helpers/fake-speech.sh) plays the session; the real stdin holder runs.
 . "${OMCTEST_LIB:?set OMCTEST_LIB, or run via: appletbuilder test}"
 . "$OMCTEST_TESTS/lib.test.speech.sh"
 
-# The poller's first job, done by hand: the model list and pickers.
 open_window() {
     reset_state
     omc_run speech.window.init
-    lib_call load_models "$(spool)"
-    lib_call populate_model_picker "$(spool)"
-    end_quiet_window
-    lib_call refresh_actions "$(spool)"
+    load_window_models
+    pane_call live refresh_live_actions "$(live_pane)"
 }
 
 # How many stdin holders are running for a run directory. The match is on how the command line
@@ -41,18 +37,34 @@ wait_for_no_holders() {   # $1 = run dir
 stop_log="$FAKE_SPEECH_LOG.stop"
 
 # ------------------------------------------------------------------------------------------------
-section "Record is offered for a model that can stream, with no recording chosen"
+section "the Live picker offers only models that can stream, each marked with its engine"
 open_window
-check "apple.transcriber is selected" "apple.transcriber" "$(/bin/cat "$(spool)/model.id")"
-check "Record is enabled" "1" "$(ui_enabled "$RECORD_BTN")"
-check "Transcribe is not, with no file" "0" "$(ui_enabled "$TRANSCRIBE_BTN")"
-check "the status offers both ways in" \
-    "Choose or drop a recording to transcribe, or press Record to transcribe live." "$(ui_value "$STATUS_TEXT")"
+check "only the live rows, Apple's with the logo and ggml's with [G]" \
+    "[\"Apple dictation (built in) $apple_logo\",\"Apple long-form (built in) $apple_logo\",\"Nemotron \\\"streaming\\\" (Q8_0) [G]\"]" \
+    "$(ui_prop "$LIVE_MODEL_PICKER" options)"
+check "apple.transcriber is selected" "apple.transcriber" "$(/bin/cat "$(live_pane)/model.id")"
+check "Live is enabled" "1" "$(ui_enabled "$LIVE_BTN")"
+check "Stop is not" "0" "$(ui_enabled "$LIVE_STOP_BTN")"
+check "the status says what Live does" \
+    "Press Live to transcribe the microphone with Apple long-form (built in)." "$(ui_value "$LIVE_STATUS")"
 
-section "Record starts speech stream with the model and language, and its stdin holder"
+section "a Live model choice is saved under its own key, apart from the Recordings tab's"
+omc_control "$LIVE_MODEL_PICKER" 3
+omc_run speech.model.changed
+check "Nemotron is selected" "ggml.nemotron-3.5-asr-streaming-0.6b@q8_0" "$(/bin/cat "$(live_pane)/model.id")"
+check "saved as live.model" "ggml.nemotron-3.5-asr-streaming-0.6b@q8_0" "$(/bin/cat "$SPEECH_APP_SUPPORT/Settings/live.model" 2>/dev/null)"
+check_absent "the Recordings tab's choice is untouched" "$SPEECH_APP_SUPPORT/Settings/recordings.model"
+end_quiet_window
+omc_control "$LIVE_MODEL_PICKER" 2
+omc_run speech.model.changed
+check "back to apple.transcriber" "apple.transcriber" "$(/bin/cat "$(live_pane)/model.id")"
+end_quiet_window
+
+# ------------------------------------------------------------------------------------------------
+section "Live starts speech stream with the model and language, and its stdin holder"
 /bin/rm -f "$FAKE_SPEECH_LOG" "$stop_log"
-omc_run speech.record
-check_status "record exits cleanly" 0
+omc_run speech.live
+check_status "live exits cleanly" 0
 check "speech stream was started with the model and language" \
     "--json stream --model apple.transcriber --language en" \
     "$(omc_wait_for "[ -s \"$FAKE_SPEECH_LOG\" ]" && /usr/bin/head -1 "$FAKE_SPEECH_LOG")"
@@ -65,16 +77,25 @@ omc_wait_for "/usr/bin/grep -q '\"id\":1' \"$run/events.jsonl\""
 poll_tick
 check "the finished utterance and the one still spoken are shown, the draft marked" \
     "Hello world.
-and more ..." "$(ui_value "$TRANSCRIPT_EDITOR")"
-check "the status says to speak" "Recording. Speak now." "$(ui_value "$STATUS_TEXT")"
-check "Stop is enabled" "1" "$(ui_enabled "$STOP_BTN")"
-check "Record is disabled while recording" "0" "$(ui_enabled "$RECORD_BTN")"
-check "the model picker is disabled while recording" "0" "$(ui_enabled "$MODEL_PICKER")"
-check "Export waits for the end" "0" "$(ui_enabled "$EXPORT_MENU")"
+and more ..." "$(ui_value "$LIVE_TRANSCRIPT")"
+check "the status says to speak" "Listening. Speak now." "$(ui_value "$LIVE_STATUS")"
+check "Stop is enabled" "1" "$(ui_enabled "$LIVE_STOP_BTN")"
+check "Live is disabled while listening" "0" "$(ui_enabled "$LIVE_BTN")"
+check "the model picker is disabled while listening" "0" "$(ui_enabled "$LIVE_MODEL_PICKER")"
+check "Export waits for the end" "0" "$(ui_enabled "$LIVE_EXPORT_MENU")"
 
-section "a second Record while recording starts nothing"
+section "a live session keeps the Recordings tab from starting a batch"
+recording="$OMCTEST_WORK/memo.wav"
+printf 'RIFF' > "$recording"
+printf '%s\n' "$recording" > "$(rec_pane)/list.tsv"
+omc_run speech.recordings.transcribe
+check_absent "no batch was queued" "$(rec_pane)/batch"
+check "the Recordings status says why" "A live session is running. Stop it to transcribe recordings." "$(ui_value "$REC_STATUS")"
+: > "$(rec_pane)/list.tsv"
+
+section "a second Live while listening starts nothing"
 /bin/rm -f "$FAKE_SPEECH_LOG"
-omc_run speech.record
+omc_run speech.live
 check_absent "speech was not started again" "$FAKE_SPEECH_LOG"
 check "the same run is current" "$run" "$(run_dir)"
 
@@ -91,14 +112,14 @@ poll_tick
 check "the session ended as done, not stopped: q is a tidy stop" "done" "$(/bin/cat "$run/state")"
 check "the last utterance was finalized" \
     "Hello world.
-And more." "$(ui_value "$TRANSCRIPT_EDITOR")"
-check "the status carries no speed figure" "Done: 2 segments, 2.4 s of audio." "$(ui_value "$STATUS_TEXT")"
+And more." "$(ui_value "$LIVE_TRANSCRIPT")"
+check "the status carries no speed figure" "Done: 2 segments, 2.4 s of audio." "$(ui_value "$LIVE_STATUS")"
 check "a JSON transcript was built from the events" "2|And more.|2" \
     "$(/usr/bin/jq -r '[(.segments | length), .segments[1].text, (.segments[0].words | length)] | map(tostring) | join("|")' "$run/result.json" 2>/dev/null)"
 check "the draft partials are not in it" "0" \
     "$(/usr/bin/jq '[.segments[] | select(.text == "hello" or .text == "and more")] | length' "$run/result.json" 2>/dev/null)"
-check "Export is enabled" "1" "$(ui_enabled "$EXPORT_MENU")"
-check "Record is enabled again" "1" "$(ui_enabled "$RECORD_BTN")"
+check "Export is enabled" "1" "$(ui_enabled "$LIVE_EXPORT_MENU")"
+check "Live is enabled again" "1" "$(ui_enabled "$LIVE_BTN")"
 check "the holder exited with speech" "0" "$(wait_for_no_holders "$run"; holders_for "$run")"
 
 section "a live transcript exports like any other"
@@ -132,9 +153,31 @@ check "the run's model is recorded and Automatic becomes no language" "apple.tra
     "$(/usr/bin/jq -r '[.model, .language] | join("|")' "$draft_run/result.json" 2>/dev/null)"
 
 # ------------------------------------------------------------------------------------------------
+section "the event reader leaves a half-written line for the next tick"
+: > "$run/segments.tsv"
+/bin/rm -f "$run/events.lines" "$run/reflected"
+printf '%s\n' '{"id":0,"text":"first draft","type":"segment.partial"}' > "$run/events.jsonl"
+printf '%s' '{"id":0,"text":"first dr' >> "$run/events.jsonl"
+pane_call live process_events "$(live_pane)"
+check "only the complete line was consumed" "1" "$(/bin/cat "$run/events.lines")"
+check "its segment is in the table" "0	partial	first draft" "$(/bin/cat "$run/segments.tsv")"
+printf '%s\n' 'aft","type":"segment.final"}' >> "$run/events.jsonl"
+printf '%s\n' '{"id":0,"refined_by":"apple.dictation","text":"first draft, refined","type":"segment.refined"}' >> "$run/events.jsonl"
+pane_call live process_events "$(live_pane)"
+check "the completed line and the next were consumed" "3" "$(/bin/cat "$run/events.lines")"
+check "the refinement replaced the final, which replaced the partial" "0	refined	first draft, refined" "$(/bin/cat "$run/segments.tsv")"
+
+section "an unreadable line costs only itself"
+printf '%s\n' 'this is not json' '{"id":1,"text":"after the bad line","type":"segment.final"}' >> "$run/events.jsonl"
+pane_call live process_events "$(live_pane)"
+check "both lines were consumed" "5" "$(/bin/cat "$run/events.lines")"
+check "the good line still landed" "after the bad line" "$(/usr/bin/awk -F'\t' '$1 == 1 { print $3 }' "$run/segments.tsv")"
+check_grep "the bad line was kept for inspection" "this is not json" "$run/events.unreadable"
+
+# ------------------------------------------------------------------------------------------------
 section "closing the window mid-session ends it through end of input"
 /bin/rm -f "$stop_log"
-omc_run speech.record
+omc_run speech.live
 run="$(run_dir)"
 pid="$(/bin/cat "$run/speech.pid")"
 omc_wait_for "/usr/bin/grep -q 'engine.ready' \"$run/events.jsonl\""
@@ -151,7 +194,7 @@ open_window
 dead_app=$!
 /bin/kill -KILL "$dead_app"
 wait "$dead_app" 2>/dev/null
-orphan_run="$(spool)/run-orphan"
+orphan_run="$(live_pane)/run-orphan"
 /bin/mkdir -p "$orphan_run"
 # The dead pid goes to this one call only, in a subshell of its own.
 pid="$( OMC_APP_PROCESS_ID="$dead_app"; export OMC_APP_PROCESS_ID; lib_call spawn_stream "$orphan_run" apple.transcriber en )"
@@ -162,18 +205,24 @@ check "speech was told by end of input, with no one asking" "eof" \
 check "speech exited" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" && echo dead || echo alive)"
 
 # ------------------------------------------------------------------------------------------------
-section "a model that cannot stream disables Record and says why"
+section "a model that cannot stream is refused, and says why"
 open_window
-omc_control "$MODEL_PICKER" 3
-omc_run speech.model.changed
-check "Whisper is selected" "ggml.whisper-large-v3-turbo@q8_0" "$(/bin/cat "$(spool)/model.id")"
-check "Record is disabled" "0" "$(ui_enabled "$RECORD_BTN")"
-check "the status says the model cannot" \
-    "Choose or drop a recording to transcribe. Whisper large-v3-turbo (Q8_0) cannot transcribe live." "$(ui_value "$STATUS_TEXT")"
+printf 'ggml.whisper-large-v3-turbo@q8_0' > "$(live_pane)/model.id"
 /bin/rm -f "$FAKE_SPEECH_LOG"
-omc_run speech.record
-check_absent "a Record that arrives anyway starts nothing" "$FAKE_SPEECH_LOG"
-check "and says why" "Whisper large-v3-turbo (Q8_0) cannot transcribe live. Choose a model that can." "$(ui_value "$STATUS_TEXT")"
+omc_run speech.live
+check_absent "a Live that arrives anyway starts nothing" "$FAKE_SPEECH_LOG"
+check "and names the model" "ggml.whisper-large-v3-turbo@q8_0 cannot transcribe live. Choose a model that can." "$(ui_value "$LIVE_STATUS")"
+
+section "a batch of recordings keeps Live disabled, and says why"
+open_window
+printf 'running' > "$(rec_pane)/batch"
+pane_call live refresh_live_actions "$(live_pane)"
+check "Live is disabled" "0" "$(ui_enabled "$LIVE_BTN")"
+check "the status says why" "Recordings are being transcribed. Live is available when they are done." "$(ui_value "$LIVE_STATUS")"
+/bin/rm -f "$FAKE_SPEECH_LOG"
+omc_run speech.live
+check_absent "a Live that arrives anyway starts nothing" "$FAKE_SPEECH_LOG"
+/bin/rm -f "$(rec_pane)/batch"
 
 section "cumulative: the window was only written through ids it declares"
 check "no undeclared ids" "" "$(ui_unknown_writes)"

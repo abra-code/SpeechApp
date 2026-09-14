@@ -4,9 +4,10 @@
 #   args: <window_uuid> <spool_dir>
 #
 # The first thing it does is read the catalog, so the window can appear before that work is
-# done. After that, each tick it reads the current run's new events into the segment table,
-# re-renders the transcript when the table changed, settles a run whose process has exited, and
-# brings every control's enabled state in line with the spool.
+# done. After that, each tick it serves both tabs: it reads the current run's new events into the
+# segment table, re-renders the transcript when the table changed, settles a run whose process
+# has exited, moves a batch of recordings on to the next one, and brings every control's enabled
+# state in line with the spool (poll_live and poll_recordings in lib.speech.sh).
 #
 # A SIGKILLed app runs no cleanup, so the poller watches the app's pid as well as the spool:
 # without that, it would poll a spool nobody will ever remove, forever.
@@ -22,11 +23,17 @@ load_models "$spool"
 load_status=$?
 if [ "$load_status" -ne 0 ]; then
     reason="$(/usr/bin/head -3 "$spool/catalog.err" 2>/dev/null)"
-    set_status "Could not read the model catalog: ${reason:-speech did not answer}"
+    for pane in live recordings; do
+        use_pane "$pane"
+        set_status "Could not read the model catalog: ${reason:-speech did not answer}"
+    done
     present_alert "Could not read the model catalog" "${reason:-The speech tool inside Speech.app did not answer. Reinstalling the app may help.}"
     exit 1
 fi
-populate_model_picker "$spool"
+use_pane live
+populate_model_picker "$spool/live"
+use_pane recordings
+populate_model_picker "$spool/recordings"
 
 while [ -d "$spool" ]; do
     if [ -n "$app_pid" ]; then
@@ -34,15 +41,8 @@ while [ -d "$spool" ]; do
         app_status=$?
         [ "$app_status" -eq 0 ] || break
     fi
-    run="$(current_run_dir "$spool")"
-    if [ -n "$run" ]; then
-        process_events "$spool"
-        changed=$?
-        [ "$changed" -eq 0 ] && render_transcript "$spool"
-        finish_if_exited "$spool"
-        reflect_run_end "$spool"
-    fi
-    refresh_actions "$spool"
+    poll_live "$spool"
+    poll_recordings "$spool"
     /bin/sleep 0.5
 done
 

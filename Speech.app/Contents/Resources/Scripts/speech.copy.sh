@@ -1,10 +1,11 @@
-# speech.copy - copy the transcript, as shown in the window, to the clipboard.
+# speech.copy - copy the live transcript, as shown in the window, to the clipboard.
 
 . "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.sh"
 
-spool="$(spool_dir_for "$window_uuid")"
-[ -n "$window_uuid" ] && [ -d "$spool" ] || exit 0
-run="$(current_run_dir "$spool")"
+pane="$(pane_dir_for "$window_uuid" live)"
+[ -n "$window_uuid" ] && [ -d "$pane" ] || exit 0
+use_pane live
+run="$(current_run_dir "$pane")"
 [ -n "$run" ] && [ -s "$run/transcript.txt" ] || exit 0
 
 "$pasteboard" general set "$(/bin/cat "$run/transcript.txt")"

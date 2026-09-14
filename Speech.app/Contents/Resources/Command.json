@@ -29,9 +29,10 @@
       "COMMAND_ID": "speech.open",
       "EXECUTION_MODE": "exe_script_file",
       "CHOOSE_FILE_DIALOG": {
-        "MESSAGE": "Choose a recording to transcribe",
-        "ALLOW_MULTIPLE_ITEMS": false,
-        "ALLOWED_CONTENT_TYPES": ["public.audio", "public.movie"]
+        "MESSAGE": "Choose recordings to transcribe",
+        "ALLOW_MULTIPLE_ITEMS": true,
+        "ALLOWED_CONTENT_TYPES": ["public.audio", "public.movie"],
+        "BUTTON_PROMPT": "Add"
       }
     },
     {
@@ -65,16 +66,7 @@
     },
     {
       "NAME": "Speech",
-      "COMMAND_ID": "speech.transcribe",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_25_VALUE": "",
-        "OMC_ACTIONUI_VIEW_26_VALUE": ""
-      }
-    },
-    {
-      "NAME": "Speech",
-      "COMMAND_ID": "speech.record",
+      "COMMAND_ID": "speech.live",
       "EXECUTION_MODE": "exe_script_file"
     },
     {
@@ -127,6 +119,92 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.copy",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.model.changed",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_VIEW_125_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.language.changed",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_VIEW_126_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.selected",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_TABLE_160_COLUMN_3_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.remove",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.transcribe",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.stop",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.export.txt",
+      "EXECUTION_MODE": "exe_script_file",
+      "SAVE_AS_DIALOG": {
+        "MESSAGE": "Export the transcript as plain text",
+        "DEFAULT_FILE_NAME": ["Transcript.txt"],
+        "ALLOWED_CONTENT_TYPES": ["public.plain-text"],
+        "BUTTON_PROMPT": "Export"
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.export.srt",
+      "EXECUTION_MODE": "exe_script_file",
+      "SAVE_AS_DIALOG": {
+        "MESSAGE": "Export the transcript as SRT subtitles",
+        "DEFAULT_FILE_NAME": ["Transcript.srt"],
+        "BUTTON_PROMPT": "Export"
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.export.vtt",
+      "EXECUTION_MODE": "exe_script_file",
+      "SAVE_AS_DIALOG": {
+        "MESSAGE": "Export the transcript as WebVTT subtitles",
+        "DEFAULT_FILE_NAME": ["Transcript.vtt"],
+        "BUTTON_PROMPT": "Export"
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.export.json",
+      "EXECUTION_MODE": "exe_script_file",
+      "SAVE_AS_DIALOG": {
+        "MESSAGE": "Export the transcript as JSON with timings",
+        "DEFAULT_FILE_NAME": ["Transcript.json"],
+        "ALLOWED_CONTENT_TYPES": ["public.json"],
+        "BUTTON_PROMPT": "Export"
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.copy",
       "EXECUTION_MODE": "exe_script_file"
     },
     {
