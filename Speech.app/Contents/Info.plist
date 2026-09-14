@@ -30,9 +30,9 @@
 	<key>CFBundleExecutable</key>
 	<string>Speech</string>
 	<key>CFBundleIconFile</key>
-	<string>ActionUI Window</string>
+	<string>Speech</string>
 	<key>CFBundleIconName</key>
-	<string>ActionUI Window</string>
+	<string>Speech</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.abracode.Speech</string>
 	<key>CFBundleInfoDictionaryVersion</key>

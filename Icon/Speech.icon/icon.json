@@ -1,0 +1,49 @@
+{
+  "fill" : {
+    "automatic-gradient" : "srgb:0.01680,0.19835,1.00000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill-specializations" : [
+            {
+              "value" : {
+                "automatic-gradient" : "extended-srgb:0.99608,1.00000,1.00000,1.00000"
+              }
+            },
+            {
+              "appearance" : "dark",
+              "value" : {
+                "automatic-gradient" : "display-p3:0.25615,0.44119,1.00000,1.00000"
+              }
+            }
+          ],
+          "glass" : true,
+          "image-name" : "mic_sparkle.svg",
+          "name" : "mic_sparkle",
+          "position" : {
+            "scale" : 1.15,
+            "translation-in-points" : [
+              60,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}
