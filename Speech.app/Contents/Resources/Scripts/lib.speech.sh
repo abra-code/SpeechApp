@@ -832,8 +832,8 @@ process_events() {   # $1 = pane dir
     [ -n "$_position" ] && _name="$_name ($_position)"
     local _status=""
     : > "$_run/segments.new"
-    local _type _id _text _percent _phase _message _segments _audio _wall _rtfx
-    while IFS="$US" read -r _type _id _text _percent _phase _message _segments _audio _wall _rtfx; do
+    local _type _id _text _percent _phase _message _segments _audio _wall _rtfx _file _event_model
+    while IFS="$US" read -r _type _id _text _percent _phase _message _segments _audio _wall _rtfx _file _event_model; do
         case "$_type" in
             segment.partial) printf '%s\tpartial\t%s\n' "$_id" "$_text" >> "$_run/segments.new" ;;
             segment.final)   printf '%s\tfinal\t%s\n' "$_id" "$_text" >> "$_run/segments.new" ;;
@@ -842,14 +842,22 @@ process_events() {   # $1 = pane dir
                 _status="Transcribing $_name... ${_percent:-0}%"
                 ;;
             model.progress)
-                case "$_phase" in
-                    downloading) _status="Downloading the model... ${_percent:-0}%" ;;
-                    compiling)   _status="Preparing the model (the first run of a model is the slow one)..." ;;
-                    installing)  _status="Installing the model... ${_percent:-0}%" ;;
-                    *)           _status="Checking the model..." ;;
-                esac
+                if [ "${_event_model%%.*}" = apple ] && [ -n "$_file" ]; then
+                    note_apple_language_files "$_run" "$_phase" "$_file" "$_percent"
+                    _status="$(apple_language_files_status "$_run")"
+                    # Pushed below, so this tick's refresh has nothing to push again.
+                    write_state "$_run/language_files.shown" "$_status"
+                else
+                    case "$_phase" in
+                        downloading) _status="Downloading the model... ${_percent:-0}%" ;;
+                        compiling)   _status="Preparing the model (the first run of a model is the slow one)..." ;;
+                        installing)  _status="Installing the model... ${_percent:-0}%" ;;
+                        *)           _status="Checking the model..." ;;
+                    esac
+                fi
                 ;;
             engine.ready)
+                /bin/rm -f "$_run/language_files.phase" "$_run/language_files.since" "$_run/language_files.moved" "$_run/language_files.shown"
                 if [ "$_kind" = live ]; then
                     _status="Listening. Speak now."
                 else
@@ -897,6 +905,74 @@ process_events() {   # $1 = pane dir
         build_live_result "$_run"
     fi
     return "$_merged"
+}
+
+# --- Apple's language files --------------------------------------------------------------------
+# Before Apple's engines transcribe in a language, macOS may have to download that language's
+# files, and speech reports it as model.progress with the locale in `file`. The download can take
+# minutes or not move at all: on a metered connection one sat at 0% for 13 minutes with no error.
+# So the run keeps what it was last told, and every poller tick rewrites the status with the time
+# spent, rather than leaving a frozen percentage on screen until the next event.
+#   language_files.phase     listing | installing <US> language name <US> percent
+#   language_files.since     epoch seconds of the first installing event
+#   language_files.moved     epoch seconds of the last installing event whose percent changed
+#   language_files.shown     the status text last pushed, so an unchanged tick writes nothing
+
+note_apple_language_files() {   # $1 = run dir, $2 = phase, $3 = locale, $4 = percent
+    local _name="$(language_display_name "${3%%[-_]*}")"
+    local _previous="$(read_state "$1/language_files.phase")"
+    write_state "$1/language_files.phase" "$2$US$_name$US$4"
+    [ "$2" = installing ] || return 0
+    local _now="$(/bin/date +%s)"
+    [ -f "$1/language_files.since" ] || write_state "$1/language_files.since" "$_now"
+    if [ "$_previous" != "$2$US$_name$US$4" ] || [ ! -f "$1/language_files.moved" ]; then
+        write_state "$1/language_files.moved" "$_now"
+    fi
+}
+
+apple_language_files_status() {   # $1 = run dir
+    local _record="$(read_state "$1/language_files.phase")"
+    [ -n "$_record" ] || return 0
+    local _phase="${_record%%"$US"*}"
+    local _rest="${_record#*"$US"}"
+    local _name="${_rest%%"$US"*}"
+    local _percent="${_rest#*"$US"}"
+    if [ "$_phase" != installing ]; then
+        printf "Checking Apple's %s speech files..." "$_name"
+        return 0
+    fi
+    local _since="$(read_state "$1/language_files.since")"
+    local _moved="$(read_state "$1/language_files.moved")"
+    local _now="$(/bin/date +%s)"
+    local _elapsed=0
+    case "$_since" in ''|*[!0-9]*) ;; *) _elapsed=$((_now - _since)) ;; esac
+    local _still=0
+    case "$_moved" in ''|*[!0-9]*) ;; *) _still=$((_now - _moved)) ;; esac
+    local _advice="A slow or metered connection can hold the download back; press Stop to try again later."
+    if [ "$_still" -ge 60 ] && [ "${_percent:-0}" = 0 ]; then
+        printf "Downloading Apple's %s speech files: nothing has arrived after %s. %s" \
+            "$_name" "$(format_clock "$_elapsed")" "$_advice"
+    elif [ "$_still" -ge 60 ]; then
+        printf "Downloading Apple's %s speech files... %s%%, and nothing more for %s. %s" \
+            "$_name" "$_percent" "$(format_clock "$_still")" "$_advice"
+    elif [ "$_elapsed" -ge 10 ]; then
+        printf "Downloading Apple's %s speech files... %s%% (%s)" "$_name" "${_percent:-0}" "$(format_clock "$_elapsed")"
+    else
+        printf "Downloading Apple's %s speech files... %s%%" "$_name" "${_percent:-0}"
+    fi
+}
+
+# Each tick: the status of a run still waiting for Apple's language files, with the time spent.
+refresh_language_files_status() {   # $1 = pane dir
+    local _run="$(current_run_dir "$1")"
+    [ -n "$_run" ] || return 0
+    [ -f "$_run/language_files.since" ] || return 0
+    [ "$(read_state "$_run/state")" = running ] || return 0
+    local _status="$(apple_language_files_status "$_run")"
+    [ -n "$_status" ] || return 0
+    [ "$_status" = "$(read_state "$_run/language_files.shown")" ] && return 0
+    write_state "$_run/language_files.shown" "$_status"
+    set_status "$_status"
 }
 
 # The run whose transcript the pane shows. Live shows its current session. Recordings shows the
@@ -1529,6 +1605,7 @@ poll_live() {   # $1 = spool
         process_events "$_pane"
         local _changed=$?
         [ "$_changed" -eq 0 ] && render_transcript "$_pane"
+        refresh_language_files_status "$_pane"
         finish_if_exited "$_pane"
         reflect_run_end "$_pane"
     fi
@@ -1550,6 +1627,7 @@ poll_recordings() {   # $1 = spool
         process_events "$_pane"
         local _changed=$?
         [ "$_changed" -eq 0 ] && render_transcript "$_pane"
+        refresh_language_files_status "$_pane"
         finish_if_exited "$_pane"
     fi
     advance_batch "$_pane"

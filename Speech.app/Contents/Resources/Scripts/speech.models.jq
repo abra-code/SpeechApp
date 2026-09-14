@@ -43,8 +43,13 @@ def use_text:
     elif ((.modes // []) | index("live")) != null then "Recordings and live"
     else "Recordings only" end;
 
+# speech says why a row cannot run here - for Apple's rows on macOS 15, that they need macOS 26.
+def unavailable_text:
+    "Not available on this Mac" + (if (.reason // "") != "" then ": \(.reason)" else "" end);
+
 def state_text:
-    if .state == "system_managed" then "Built into macOS"
+    if .state == "system_managed" then
+        if .available == true then "Built into macOS" else unavailable_text end
     elif .state == "installed" then
         "Installed" + (if on_disk > 0 then " - \(on_disk | bytes)" else "" end)
         + (if .available == true then "" else ". This Mac cannot run it with this version of Speech." end)
@@ -55,7 +60,7 @@ def state_text:
             + " kept. Download again to resume."
         else "Download interrupted. Download again to resume." end
     elif on_disk > 0 then "Incomplete - \(on_disk | bytes) on disk that cannot be used. Delete it, then download again."
-    elif .available != true then "Not available on this Mac"
+    elif .available != true then unavailable_text
     elif .size_bytes then "Not downloaded - \(.size_bytes | bytes)"
     else "Not downloaded" end;
 

@@ -6,8 +6,10 @@
 #   FAKE_SPEECH_FIXTURES   directory holding catalog.json, transcribe.events.jsonl,
 #                          transcribe.result.json (required)
 #   FAKE_SPEECH_LOG        file each invocation's arguments are appended to, one line per call
-#   FAKE_SPEECH_MODE       transcribe behavior: ok (default), fail (an error event, exit 1), or
-#                          hang (one progress event, then wait to be signaled)
+#   FAKE_SPEECH_MODE       transcribe behavior: ok (default), fail (an error event, exit 1),
+#                          hang (one progress event, then wait to be signaled), or
+#                          language_files (Apple's Italian files listed, then installing at 0%,
+#                          then wait to be signaled - a download that does not move)
 #   FAKE_SPEECH_FAIL_FILE  a recording that fails as in fail mode while every other one succeeds
 #   FAKE_SPEECH_CATALOG    a writable copy of catalog.json to answer `catalog` from instead;
 #                          `models download` and `models delete` then change the row's state in it
@@ -101,6 +103,11 @@ case "$verb" in
                 ;;
             hang)
                 printf '%s\n' '{"audio_seconds_done":0,"audio_seconds_total":4.4,"fraction":0,"t":0.01,"type":"progress"}'
+                exec -a "$0" /bin/sleep 600
+                ;;
+            language_files)
+                printf '%s\n' '{"file":"it_IT","model":"apple.dictation","phase":"listing","t":0.7,"type":"model.progress"}'
+                printf '%s\n' '{"file":"it_IT","fraction":0,"model":"apple.dictation","phase":"installing","t":0.8,"type":"model.progress"}'
                 exec -a "$0" /bin/sleep 600
                 ;;
             *)
