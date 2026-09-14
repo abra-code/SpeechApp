@@ -1,8 +1,9 @@
-# speech.live.stdin.sh - holds a live session's stdin, and ends it. Not an OMC command:
-# spawn_stream (lib.speech.sh) starts it beside `speech stream`.
+# speech.live.stdin.sh - holds the stdin of a microphone run - a live session or a new recording -
+# and ends it. Not an OMC command: start_stdin_holder (lib.speech.sh) starts it beside
+# `speech stream` or `speech record`.
 #   args: <run_dir> <speech_pid> [app_pid]
 #
-# speech stream stops tidily on "q" and Return, or at end of input (speech's docs/live.md). Its
+# Both verbs stop tidily on "q" and Return, or at end of input (speech's docs/live.md). The run's
 # stdin is the FIFO <run_dir>/stdin.fifo and this process is the only writer, so it decides:
 #   - Stop writes <run_dir>/stop.request: this process sends "q" once and keeps the FIFO open
 #     until speech exits, so the tidy stop is the only stop it receives.

@@ -162,6 +162,11 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.record",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.recordings.export.txt",
       "EXECUTION_MODE": "exe_script_file",
       "SAVE_AS_DIALOG": {

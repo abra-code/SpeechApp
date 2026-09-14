@@ -21,7 +21,13 @@ active=$?
 other_pane_is_busy "$pane"
 other_busy=$?
 if [ "$other_busy" -eq 0 ]; then
-    set_status "Recordings are being transcribed. Live is available when they are done."
+    capture_is_active "$(spool_dir_for "$window_uuid")/recordings"
+    recording=$?
+    if [ "$recording" -eq 0 ]; then
+        set_status "A recording is being made in the Recordings tab. Live is available when it is done."
+    else
+        set_status "Recordings are being transcribed. Live is available when they are done."
+    fi
     exit 0
 fi
 

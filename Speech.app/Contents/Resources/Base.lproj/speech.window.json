@@ -179,6 +179,28 @@
                   },
                   { "type": "Spacer" },
                   {
+                    "type": "Gauge",
+                    "id": 170,
+                    "properties": {
+                      "value": 0,
+                      "style": "accessoryLinear",
+                      "hidden": true,
+                      "frame": { "width": 90 }
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "id": 142,
+                    "properties": {
+                      "title": "Record",
+                      "systemImage": "record.circle",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "keyboardShortcut": { "key": "r", "modifiers": ["command", "shift"] },
+                      "actionID": "speech.record"
+                    }
+                  },
+                  {
                     "type": "Button",
                     "id": 141,
                     "properties": {

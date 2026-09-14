@@ -80,6 +80,30 @@ case "$verb" in
         printf '%s\n' "$how" > "$log.stop"
         exit 0
         ;;
+    record)
+        # A new recording: started, one level, then wait for stdin to say stop - "q" on a line, or
+        # end of input - and write the file, as `speech record` keeps what it captured. In
+        # record_fail mode it fails before the microphone opens and writes nothing.
+        output="$1"
+        if [ "${FAKE_SPEECH_MODE:-ok}" = record_fail ]; then
+            printf '%s\n' '{"code":"unavailable","message":"microphone access was refused.","t":0.01,"type":"error"}'
+            printf 'speech record: microphone access was refused.\n' >&2
+            exit 1
+        fi
+        printf '{"channels":1,"device":"Test Microphone","output":"%s","sample_rate":48000,"t":0.1,"type":"recording.started"}\n' "$output"
+        printf '%s\n' '{"peak_db":-12,"rms_db":-30,"seconds":65.2,"t":0.3,"type":"recording.level"}'
+        how="eof"
+        while IFS= read -r line; do
+            if [ "$line" = q ]; then
+                how="q"
+                break
+            fi
+        done
+        printf 'RIFF recorded' > "$output"
+        printf '{"audio_seconds":2,"output":"%s","segments":0,"t":2.1,"type":"done","wall_seconds":2.1}\n' "$output"
+        printf '%s\n' "$how" > "$log.stop"
+        exit 0
+        ;;
     export)
         input="$1"
         format=""

@@ -12,11 +12,15 @@ spool="$(spool_dir_for "$window_uuid")"
 # transcript are going away and the microphone should be released now. If Stop was already
 # pressed, this TERM is a second stop and cuts the final utterance short - which is what closing
 # the window means. A recording being transcribed is signaled for the same reason; the recordings
-# still waiting in the batch are simply never started.
+# still waiting in the batch are simply never started. A new recording being made is signaled
+# too: `speech record` treats TERM as a stop and keeps the file it wrote, though the window that
+# would have listed it is gone.
 for pane in live recordings; do
     run="$(current_run_dir "$spool/$pane")"
     [ -n "$run" ] && signal_speech_pid "$(read_state "$run/speech.pid")" TERM
 done
+capture="$(capture_dir "$spool/recordings")"
+[ -n "$capture" ] && signal_speech_pid "$(read_state "$capture/speech.pid")" TERM
 /bin/rm -rf "$spool"
 
 exit 0

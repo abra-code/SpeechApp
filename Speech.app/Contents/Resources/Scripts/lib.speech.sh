@@ -1,5 +1,5 @@
 # lib.speech.sh - shared library for the Speech applet. Sourced by every handler, by the window
-# poller (speech.poll.sh) and by the live stdin holder (speech.live.stdin.sh). POSIX /bin/sh
+# poller (speech.poll.sh) and by the stdin holder (speech.live.stdin.sh). POSIX /bin/sh
 # (macOS bash 3.2): validate with `sh -n`, never `bash -n`.
 
 [ -n "${__SPEECH_LIB:-}" ] && return 0
@@ -28,19 +28,22 @@ APPLE_LOGO="$(printf '\357\243\277')"
 # --- Substitutable outside world ---------------------------------------------------------------
 # Everything below names something a test must not reach for real: the speech binary, which
 # loads gigabytes of weights and opens the microphone; the background poller, which would keep
-# writing into the window while a test reads it back; and the user's real model store, settings
-# and session state. omctest intercepts the OMC support tools but cannot redirect an absolute or
-# bundle-relative path, so a variable is the only seam. Nothing sets these in normal use.
+# writing into the window while a test reads it back; and the user's real model store, settings,
+# session state and recordings folder. omctest intercepts the OMC support tools but cannot
+# redirect an absolute or bundle-relative path, so a variable is the only seam. Nothing sets these
+# in normal use.
 #
 # Two environment namespaces share the SPEECH_ prefix and must not be treated as one set. The
 # ones read here (SPEECH_BIN, SPEECH_FINGERPRINT_BIN, SPEECH_POLL_SCRIPT,
-# SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT) are this applet's test hooks. SPEECH_MODELS_DIR
-# and SPEECH_CATALOG_DIR, exported below, are the speech binary's own production configuration.
+# SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT, SPEECH_RECORDINGS_DIR) are this applet's test
+# hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the speech binary's own
+# production configuration.
 SPEECH_BIN="${SPEECH_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech}"
 FINGERPRINT_BIN="${SPEECH_FINGERPRINT_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/fingerprint}"
 POLL_SCRIPT="${SPEECH_POLL_SCRIPT:-$SCRIPTS_DIR/speech.poll.sh}"
 LIVE_STDIN_SCRIPT="${SPEECH_LIVE_STDIN_SCRIPT:-$SCRIPTS_DIR/speech.live.stdin.sh}"
 APP_SUPPORT="${SPEECH_APP_SUPPORT:-$HOME/Library/Application Support/Speech}"
+RECORDINGS_DIR="${SPEECH_RECORDINGS_DIR:-$HOME/Documents/Speech Recordings}"
 SESSIONS_DIR="$APP_SUPPORT/Sessions"
 SETTINGS_DIR="$APP_SUPPORT/Settings"
 
@@ -70,11 +73,13 @@ REC_MODEL_PICKER=125
 REC_LANGUAGE_PICKER=126
 REC_TRANSCRIBE_BTN=140
 REC_STOP_BTN=141
+REC_RECORD_BTN=142
 REC_EXPORT_MENU=150
 REC_COPY_BTN=155
 REC_TABLE=160
 REC_ADD_BTN=161
 REC_REMOVE_BTN=162
+REC_LEVEL=170
 REC_TRANSCRIPT=210
 REC_STATUS=310
 
@@ -448,7 +453,7 @@ handle_model_changed() {   # $1 = pane dir, $2 = picker value
 
     write_state "$1/model.id" "$_model"
     setting_set "$PANE.model" "$_model"
-    /bin/rm -f "$1/batch.summary"
+    /bin/rm -f "$1/status.note"
     populate_language_picker "$1"
     /bin/rm -f "$1/actions.sig"
 }
@@ -473,21 +478,24 @@ handle_language_changed() {   # $1 = pane dir, $2 = picker value
 # directory before repointing `current`, so a poller in the middle of reading the previous run's
 # events can never write into the new one. A recording's transcription lives in
 # <pane>/items/<key>, where the key is the recording path's md5, so each recording in the list
-# keeps its last transcript for as long as the window is open.
+# keeps its last transcript for as long as the window is open. A new recording being made lives in
+# <pane>/capture-<epoch>-<pid>, named by the pane's `capture` file.
 #
 # Files in a run directory:
-#   kind           file (speech transcribe) | live (speech stream)
+#   kind           file (speech transcribe) | live (speech stream) | record (speech record)
 #   model, language the model id and language tag the run was started with
 #   source.path    the recording (file runs); position, "2 of 5" in a batch
+#   output.path    the file a record run writes
 #   state          running | stopping | done | failed | stopped
 #   speech.pid     the speech process
 #   events.jsonl   its stdout, one JSON event per line; stderr.log, its stderr
 #   events.lines   how many complete event lines the poller has consumed
 #   segments.tsv   id <TAB> kind <TAB> text, sorted by id - the transcript's source of truth
 #   transcript.txt the rendered transcript; result.json, the finished transcript as JSON
-#   stdin.fifo     a live run's stdin; stop.request, written by Stop for the stdin holder
+#   stdin.fifo     a live or record run's stdin; stop.request, written by Stop for the stdin holder
 #   recording.fp   the recording's fingerprint when its transcription started
 #   saved.name, not_saved.txt  what became of the transcript beside the recording
+#   level, audio_seconds  a record run's last input level and the length of what it wrote
 #   summary.txt, error.txt, warnings.txt, reflected, settled
 
 current_run_dir() {   # $1 = pane dir; prints the run directory, empty when there is none
@@ -510,14 +518,19 @@ run_is_active() {   # $1 = pane dir
     return 1
 }
 
-# Returns 0 while the pane is doing something: a run in progress, or a batch still going.
+# Returns 0 while the pane is doing something: a run in progress, a batch still going, or a new
+# recording being made.
 pane_is_busy() {   # $1 = pane dir
     [ -n "$(read_state "$1/batch")" ] && return 0
+    capture_is_active "$1"
+    local _capturing=$?
+    [ "$_capturing" -eq 0 ] && return 0
     run_is_active "$1"
 }
 
-# Returns 0 while the window's other pane is busy. One model at a time per window: two would
-# compete for the same memory, the GPU and the Neural Engine.
+# Returns 0 while the window's other pane is busy. One thing at a time per window: two models
+# would compete for the same memory, the GPU and the Neural Engine, and two captures for the same
+# microphone.
 other_pane_is_busy() {   # $1 = pane dir
     local _spool="$(/usr/bin/dirname "$1")"
     if [ "$PANE" = live ]; then
@@ -562,17 +575,22 @@ spawn_transcribe() {   # $1 = run dir, $2 = file, $3 = model id, $4 = language t
     printf '%s' "$!"
 }
 
-# Start `speech stream` on the default microphone, in the background, and the process that holds
-# its stdin (speech.live.stdin.sh). Prints the speech pid; prints nothing when the FIFO cannot be
-# made.
+# Start the process that holds a microphone run's stdin (speech.live.stdin.sh) beside it.
 #
-# speech stream stops tidily on "q" and Return, or at end of input. Its stdin is a FIFO in the run
-# directory whose only writer is the holder, which sends "q" when Stop asks and closes the FIFO
-# when the window or the app goes away - so the session ends even when nothing is left to say so.
-# --parent-pid cannot serve: speech's parent is the handler that started it, which exits at once.
+# `speech stream` and `speech record` both stop tidily on "q" and Return, or at end of input.
+# Their stdin is a FIFO in the run directory whose only writer is the holder, which sends "q" when
+# Stop asks and closes the FIFO when the window or the app goes away - so the run ends even when
+# nothing is left to say so. --parent-pid cannot serve: speech's parent is the handler that
+# started it, which exits at once.
 #
 # The background shell opens the FIFO for reading before it becomes speech, and that open waits
 # for the holder's write end, so neither side can run ahead of the other.
+start_stdin_holder() {   # $1 = run dir, $2 = speech pid
+    /bin/sh "$LIVE_STDIN_SCRIPT" "$1" "$2" "${OMC_APP_PROCESS_ID:-}" < /dev/null > /dev/null 2>&1 &
+}
+
+# Start `speech stream` on the default microphone, in the background, with its stdin holder.
+# Prints the speech pid; prints nothing when the FIFO cannot be made.
 spawn_stream() {   # $1 = run dir, $2 = model id, $3 = language tag or auto
     /usr/bin/mkfifo "$1/stdin.fifo"
     local _fifo_status=$?
@@ -585,7 +603,20 @@ spawn_stream() {   # $1 = run dir, $2 = model id, $3 = language tag or auto
             < "$1/stdin.fifo" > "$1/events.jsonl" 2> "$1/stderr.log" &
     fi
     local _pid=$!
-    /bin/sh "$LIVE_STDIN_SCRIPT" "$1" "$_pid" "${OMC_APP_PROCESS_ID:-}" < /dev/null > /dev/null 2>&1 &
+    start_stdin_holder "$1" "$_pid"
+    printf '%s' "$_pid"
+}
+
+# Start `speech record` into a new file, in the background, with its stdin holder. Prints the
+# speech pid; prints nothing when the FIFO cannot be made.
+spawn_record() {   # $1 = run dir, $2 = output file
+    /usr/bin/mkfifo "$1/stdin.fifo"
+    local _fifo_status=$?
+    [ "$_fifo_status" -eq 0 ] || return 1
+    "$SPEECH_BIN" --json record "$2" \
+        < "$1/stdin.fifo" > "$1/events.jsonl" 2> "$1/stderr.log" &
+    local _pid=$!
+    start_stdin_holder "$1" "$_pid"
     printf '%s' "$_pid"
 }
 
@@ -616,42 +647,61 @@ format_seconds() {   # $1 = seconds
     }'
 }
 
-# Consume the event lines the poller has not seen yet, and fold their segments into the segment
-# table. Returns 0 when the segment table changed.
+# A duration in seconds as a clock, "0:07" or "12:40".
+format_clock() {   # $1 = seconds
+    /usr/bin/awk -v s="$1" 'BEGIN {
+        if (s == "" || s < 0) s = 0
+        printf "%d:%02d", int(s / 60), int(s) % 60
+    }'
+}
+
+# Consume the event lines of a run the poller has not seen yet, as one record per event in the
+# run's events.records, flattened by a jq program. Returns 0 when there was at least one line.
 #
 # Only complete lines are consumed. The line speech is in the middle of writing has no newline
 # yet; `wc -l` counts newlines, so taking that many lines leaves it for the next tick, and it is
-# read whole then. speech.events.jq turns the batch into one record per event.
-process_events() {   # $1 = pane dir
-    local _run="$(current_run_dir "$1")"
-    [ -n "$_run" ] || return 1
-    [ -f "$_run/events.jsonl" ] || return 1
-    local _consumed="$(read_state "$_run/events.lines")"
+# read whole then.
+consume_new_events() {   # $1 = run dir, $2 = jq program
+    [ -f "$1/events.jsonl" ] || return 1
+    local _consumed="$(read_state "$1/events.lines")"
     case "$_consumed" in ''|*[!0-9]*) _consumed=0 ;; esac
 
-    /usr/bin/tail -n "+$((_consumed + 1))" "$_run/events.jsonl" > "$_run/events.new" 2>/dev/null
-    local _complete="$(/usr/bin/wc -l < "$_run/events.new" | /usr/bin/tr -d ' ')"
+    /usr/bin/tail -n "+$((_consumed + 1))" "$1/events.jsonl" > "$1/events.new" 2>/dev/null
+    local _complete="$(/usr/bin/wc -l < "$1/events.new" | /usr/bin/tr -d ' ')"
     case "$_complete" in ''|*[!0-9]*) _complete=0 ;; esac
     if [ "$_complete" -eq 0 ]; then
-        /bin/rm -f "$_run/events.new"
+        /bin/rm -f "$1/events.new"
         return 1
     fi
-    /usr/bin/head -n "$_complete" "$_run/events.new" > "$_run/events.batch"
-    /bin/rm -f "$_run/events.new"
+    /usr/bin/head -n "$_complete" "$1/events.new" > "$1/events.batch"
+    /bin/rm -f "$1/events.new"
 
-    "$jq" -r -f "$SCRIPTS_DIR/speech.events.jq" "$_run/events.batch" > "$_run/events.records" 2> "$_run/events.err"
+    "$jq" -r -f "$2" "$1/events.batch" > "$1/events.records" 2> "$1/events.err"
     local _jq_status=$?
     if [ "$_jq_status" -ne 0 ]; then
         # One unreadable line fails the whole batch. Go line by line instead, so it costs only
         # itself, and keep the line for whoever has to find out why.
-        : > "$_run/events.records"
+        : > "$1/events.records"
         local _raw
         while IFS= read -r _raw; do
-            printf '%s\n' "$_raw" | "$jq" -r -f "$SCRIPTS_DIR/speech.events.jq" >> "$_run/events.records" 2>/dev/null
+            printf '%s\n' "$_raw" | "$jq" -r -f "$2" >> "$1/events.records" 2>/dev/null
             local _line_status=$?
-            [ "$_line_status" -eq 0 ] || printf '%s\n' "$_raw" >> "$_run/events.unreadable"
-        done < "$_run/events.batch"
+            [ "$_line_status" -eq 0 ] || printf '%s\n' "$_raw" >> "$1/events.unreadable"
+        done < "$1/events.batch"
     fi
+    /bin/rm -f "$1/events.batch"
+    write_state "$1/events.lines" "$((_consumed + _complete))"
+    return 0
+}
+
+# Consume the current run's new events, and fold their segments into the segment table. Returns 0
+# when the segment table changed. speech.events.jq turns each event into one record.
+process_events() {   # $1 = pane dir
+    local _run="$(current_run_dir "$1")"
+    [ -n "$_run" ] || return 1
+    consume_new_events "$_run" "$SCRIPTS_DIR/speech.events.jq"
+    local _consumed_status=$?
+    [ "$_consumed_status" -eq 0 ] || return 1
 
     local _kind="$(read_state "$_run/kind")"
     local _name="$(/usr/bin/basename "$(read_state "$_run/source.path")")"
@@ -702,8 +752,7 @@ process_events() {   # $1 = pane dir
                 ;;
         esac
     done < "$_run/events.records"
-    /bin/rm -f "$_run/events.batch" "$_run/events.records"
-    write_state "$_run/events.lines" "$((_consumed + _complete))"
+    /bin/rm -f "$_run/events.records"
 
     # Only the last status of the batch is worth showing.
     [ -n "$_status" ] && set_status "$_status"
@@ -817,12 +866,13 @@ reflect_run_end() {   # $1 = pane dir
 # --- the recordings list -------------------------------------------------------------------------
 # <pane>/list.tsv holds the recordings in the order they were added, one path per line. A path
 # with a tab or a line break in it cannot be kept in that file, or shown in the table, and is
-# refused. Batch state:
+# refused. Pane state:
 #   queue          the paths still to transcribe, one per line
 #   batch          running | stopping; absent when no batch is going
 #   batch.model, batch.language, batch.total, batch.done   the batch's model, language and count
-#   batch.summary  how the last batch ended, shown until something changes
+#   status.note    how the last batch or recording ended, shown until something changes
 #   selected.key   the item key of the selected recording
+#   capture        the name of the directory of the recording being made, or last made
 
 item_key() { /sbin/md5 -q -s "$1"; }   # $1 = recording path
 
@@ -848,7 +898,7 @@ add_recordings() {   # $1 = pane dir, $2 = paths, one per line
     done <<EOF
 $2
 EOF
-    [ "$_added" -gt 0 ] && /bin/rm -f "$1/batch.summary"
+    [ "$_added" -gt 0 ] && /bin/rm -f "$1/status.note"
     printf '%s' "$_added"
 }
 
@@ -859,7 +909,7 @@ remove_recording() {   # $1 = pane dir, $2 = path
     local _key="$(item_key "$2")"
     /bin/rm -rf "$1/items/$_key"
     [ "$(read_state "$1/selected.key")" = "$_key" ] && /bin/rm -f "$1/selected.key"
-    /bin/rm -f "$1/batch.summary"
+    /bin/rm -f "$1/status.note"
 }
 
 # A dropped item is either a path or a file URL. Prints the path.
@@ -966,7 +1016,7 @@ start_batch() {   # $1 = pane dir
     write_state "$1/batch.language" "$(read_state "$1/language.tag")"
     write_state "$1/batch.total" "$(recording_count "$1")"
     write_state "$1/batch.done" 0
-    /bin/rm -f "$1/batch.summary" "$1/current"
+    /bin/rm -f "$1/status.note" "$1/current"
     write_state "$1/batch" running
 }
 
@@ -1137,8 +1187,8 @@ advance_batch() {   # $1 = pane dir
     [ "$_batch" = running ] && _next="$(/usr/bin/head -1 "$1/queue" 2>/dev/null)"
     if [ -z "$_next" ]; then
         /bin/rm -f "$1/queue" "$1/batch"
-        write_state "$1/batch.summary" "$(batch_summary "$1" "$_batch")"
-        set_status "$(read_state "$1/batch.summary")"
+        write_state "$1/status.note" "$(batch_summary "$1" "$_batch")"
+        set_status "$(read_state "$1/status.note")"
         /bin/rm -f "$1/actions.sig"
         return 0
     fi
@@ -1187,6 +1237,163 @@ batch_summary() {   # $1 = pane dir, $2 = running | stopping
     printf '%s.' "$_text"
 }
 
+# --- recording a new file ------------------------------------------------------------------------
+# Record runs `speech record` into a new file in the recordings folder, with the same stdin holder
+# as a live session, so Stop is "q" and a closed window or a vanished app is end of input: every
+# ending goes through speech's tidy path, which keeps what was recorded. The poller shows the
+# input level while it runs and, once it has ended, adds the file to the list and selects it.
+
+capture_dir() {   # $1 = pane dir; prints the directory of the recording being made, or last made
+    local _name="$(read_state "$1/capture")"
+    [ -n "$_name" ] || return 1
+    [ -d "$1/$_name" ] || return 1
+    printf '%s' "$1/$_name"
+}
+
+# Returns 0 while a new recording is being made.
+capture_is_active() {   # $1 = pane dir
+    local _dir="$(capture_dir "$1")"
+    [ -n "$_dir" ] || return 1
+    case "$(read_state "$_dir/state")" in running|stopping) return 0 ;; esac
+    return 1
+}
+
+# A path for a new recording that does not exist yet: "Recording <stamp>.m4a", then "... 2.m4a"
+# and on. `speech record` refuses to replace a file, so a name already taken would only fail later.
+recording_path_for() {   # $1 = directory, $2 = time stamp
+    local _base="$1/Recording $2"
+    local _path="$_base.m4a"
+    local _n=2
+    while [ -e "$_path" ] || [ -L "$_path" ]; do
+        _path="$_base $_n.m4a"
+        _n=$((_n + 1))
+    done
+    printf '%s' "$_path"
+}
+
+# An input level in dBFS as a gauge value from 0 to 1: -60 dB and below is empty, 0 dB is full.
+# Anything that is not a number reads as silence.
+level_from_db() {   # $1 = dB
+    /usr/bin/awk -v db="$1" 'BEGIN {
+        if (db !~ /^-?[0-9.]+$/) { print "0.00"; exit }
+        v = (db + 60) / 60
+        if (v < 0) v = 0
+        if (v > 1) v = 1
+        printf "%.2f", v
+    }'
+}
+
+# Consume the recording's new events: the elapsed time and level go to the status line and the
+# gauge, a warning is kept, an error or `done` settles the state. speech.record-events.jq turns
+# each event into one record.
+process_capture_events() {   # $1 = pane dir
+    local _dir="$(capture_dir "$1")"
+    [ -n "$_dir" ] || return 1
+    consume_new_events "$_dir" "$SCRIPTS_DIR/speech.record-events.jq"
+    local _consumed_status=$?
+    [ "$_consumed_status" -eq 0 ] || return 1
+
+    local _seconds=""
+    local _level=""
+    local _type _event_seconds _rms _message _audio
+    while IFS="$US" read -r _type _event_seconds _rms _message _audio; do
+        case "$_type" in
+            recording.started)
+                _seconds=0
+                _level="0.00"
+                ;;
+            recording.level)
+                _seconds="$_event_seconds"
+                _level="$(level_from_db "$_rms")"
+                ;;
+            warning)
+                printf '%s\n' "$_message" >> "$_dir/warnings.txt"
+                ;;
+            error)
+                [ -s "$_dir/error.txt" ] || write_state "$_dir/error.txt" "$_message"
+                write_state "$_dir/state" failed
+                ;;
+            done)
+                write_state "$_dir/audio_seconds" "$_audio"
+                [ -s "$_dir/error.txt" ] || write_state "$_dir/state" done
+                ;;
+        esac
+    done < "$_dir/events.records"
+    /bin/rm -f "$_dir/events.records"
+
+    [ "$(read_state "$_dir/state")" = running ] || return 0
+    if [ -n "$_seconds" ]; then
+        set_status "Recording $(/usr/bin/basename "$(read_state "$_dir/output.path")")... $(format_clock "$_seconds")"
+    fi
+    if [ -n "$_level" ] && [ "$_level" != "$(read_state "$_dir/level")" ]; then
+        write_state "$_dir/level" "$_level"
+        "$dialog" "$window_uuid" "$REC_LEVEL" "$_level"
+    fi
+    return 0
+}
+
+# Settle a recording whose process has exited, the way finish_if_exited settles a transcription.
+finish_capture_if_exited() {   # $1 = pane dir
+    local _dir="$(capture_dir "$1")"
+    [ -n "$_dir" ] || return 0
+    case "$(read_state "$_dir/state")" in running|stopping) ;; *) return 0 ;; esac
+    pid_alive "$(read_state "$_dir/speech.pid")"
+    local _alive=$?
+    [ "$_alive" -ne 0 ] || return 0
+
+    process_capture_events "$1"
+    case "$(read_state "$_dir/state")" in
+        running)
+            local _tail="$(/usr/bin/tail -3 "$_dir/stderr.log" 2>/dev/null)"
+            write_state "$_dir/error.txt" "${_tail:-speech exited without finishing the recording.}"
+            write_state "$_dir/state" failed
+            ;;
+        stopping)
+            write_state "$_dir/state" stopped
+            ;;
+    esac
+}
+
+# Say once how a recording ended. A file that exists joins the list and is selected, whatever
+# ended the recording, because `speech record` keeps what it captured before a failure; only a
+# recording that left no file raises an alert.
+settle_capture() {   # $1 = pane dir
+    local _dir="$(capture_dir "$1")"
+    [ -n "$_dir" ] || return 0
+    [ -f "$_dir/settled" ] && return 0
+    local _state="$(read_state "$_dir/state")"
+    case "$_state" in running|stopping|'') return 0 ;; esac
+    : > "$_dir/settled"
+
+    local _output="$(read_state "$_dir/output.path")"
+    local _name="$(/usr/bin/basename "$_output")"
+    local _message="$(read_state "$_dir/error.txt")"
+    if [ -n "$_output" ] && [ -f "$_output" ]; then
+        add_recordings "$1" "$_output" > /dev/null
+        write_state "$1/selected.key" "$(item_key "$_output")"
+        render_recordings_table "$1"
+        show_transcript_file ""
+        local _note
+        if [ "$_state" = failed ]; then
+            _note="The recording stopped early: $_message What was recorded is in $_name, now in the list."
+        else
+            _note="Recorded $_name"
+            local _audio="$(read_state "$_dir/audio_seconds")"
+            [ -n "$_audio" ] && _note="$_note ($(format_seconds "$_audio"))"
+            _note="$_note. It is in the list, ready to transcribe."
+            [ -s "$_dir/warnings.txt" ] && _note="$_note $(/usr/bin/head -1 "$_dir/warnings.txt")"
+        fi
+        write_state "$1/status.note" "$_note"
+        set_status "$_note"
+    else
+        [ -n "$_message" ] || _message="speech exited without writing a recording."
+        write_state "$1/status.note" "Recording failed: $_message"
+        set_status "Recording failed: $_message"
+        present_alert "Recording failed" "$_message"
+    fi
+    /bin/rm -f "$1/actions.sig"
+}
+
 # --- one poller tick per pane --------------------------------------------------------------------
 # The poller runs these every half second; the tests run them as one tick.
 
@@ -1209,6 +1416,12 @@ poll_recordings() {   # $1 = spool
     use_pane recordings
     local _pane="$1/recordings"
     [ -d "$_pane" ] || return 0
+    local _capture="$(capture_dir "$_pane")"
+    if [ -n "$_capture" ]; then
+        process_capture_events "$_pane"
+        finish_capture_if_exited "$_pane"
+        settle_capture "$_pane"
+    fi
     local _run="$(current_run_dir "$_pane")"
     if [ -n "$_run" ]; then
         process_events "$_pane"
@@ -1242,6 +1455,10 @@ refresh_live_actions() {   # $1 = pane dir
     local _other_status=$?
     local _other_busy=0
     [ "$_other_status" -eq 0 ] && _other_busy=1
+    capture_is_active "$(/usr/bin/dirname "$_pane")/recordings"
+    local _capture_status=$?
+    local _other_recording=0
+    [ "$_capture_status" -eq 0 ] && _other_recording=1
     local _can_live=0
     [ "$_active" = 0 ] && [ "$_other_busy" = 0 ] && [ -n "$_model" ] && _can_live=1
     local _can_stop=0
@@ -1253,7 +1470,7 @@ refresh_live_actions() {   # $1 = pane dir
     local _can_pick=0
     [ "$_active" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
 
-    local _signature="$_can_live$_can_stop$_can_export$_can_copy$_can_pick|$_models_ready|$_state|$_other_busy|$_model"
+    local _signature="$_can_live$_can_stop$_can_export$_can_copy$_can_pick|$_models_ready|$_state|$_other_busy$_other_recording|$_model"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
@@ -1269,6 +1486,8 @@ refresh_live_actions() {   # $1 = pane dir
     [ "$_models_ready" = 1 ] || return 0
     if [ -z "$_model" ]; then
         set_status "No speech model on this Mac can transcribe live yet."
+    elif [ "$_other_recording" = 1 ]; then
+        set_status "A recording is being made in the Recordings tab. Live is available when it is done."
     elif [ "$_other_busy" = 1 ]; then
         set_status "Recordings are being transcribed. Live is available when they are done."
     else
@@ -1291,6 +1510,11 @@ refresh_recordings_actions() {   # $1 = pane dir
         _item="$_pane/items/$_selected"
         _item_state="$(read_state "$_item/state")"
     fi
+    local _capture="$(capture_dir "$_pane")"
+    local _capture_state=""
+    [ -n "$_capture" ] && _capture_state="$(read_state "$_capture/state")"
+    local _recording=0
+    case "$_capture_state" in running|stopping) _recording=1 ;; esac
 
     local _active=0
     [ -n "$_batch" ] && _active=1
@@ -1299,42 +1523,53 @@ refresh_recordings_actions() {   # $1 = pane dir
     local _other_busy=0
     [ "$_other_status" -eq 0 ] && _other_busy=1
     local _can_transcribe=0
-    [ "$_active" = 0 ] && [ "$_other_busy" = 0 ] && [ "$_count" -gt 0 ] && [ -n "$_model" ] && _can_transcribe=1
+    [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_other_busy" = 0 ] && [ "$_count" -gt 0 ] && [ -n "$_model" ] && _can_transcribe=1
+    local _can_record=0
+    [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_other_busy" = 0 ] && _can_record=1
     local _can_stop=0
     [ "$_batch" = running ] && _can_stop=1
+    [ "$_capture_state" = running ] && _can_stop=1
     local _item_finished=0
     case "$_item_state" in done|stopped|failed) _item_finished=1 ;; esac
     local _can_export=0
     [ "$_item_finished" = 1 ] && [ -s "$_item/result.json" ] && _can_export=1
     local _can_copy=0
     [ "$_item_finished" = 1 ] && [ -s "$_item/transcript.txt" ] && _can_copy=1
+    # Remove and the pickers wait for a recording too: their handlers refuse a busy pane, and an
+    # enabled picker would show a choice the pane did not take.
     local _can_remove=0
-    [ "$_active" = 0 ] && [ -n "$_selected" ] && _can_remove=1
+    [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ -n "$_selected" ] && _can_remove=1
     local _can_pick=0
-    [ "$_active" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
+    [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
 
-    local _signature="$_can_transcribe$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_models_ready|$_batch|$_other_busy|$_count|$_selected|$_item_state|$_model"
+    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_models_ready|$_batch|$_capture_state|$_other_busy|$_count|$_selected|$_item_state|$_model"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
     set_enabled "$REC_TRANSCRIBE_BTN" "$_can_transcribe"
+    set_enabled "$REC_RECORD_BTN" "$_can_record"
     set_enabled "$REC_STOP_BTN" "$_can_stop"
     set_enabled "$REC_EXPORT_MENU" "$_can_export"
     set_enabled "$REC_COPY_BTN" "$_can_copy"
     set_enabled "$REC_REMOVE_BTN" "$_can_remove"
     set_enabled "$REC_MODEL_PICKER" "$_can_pick"
     set_enabled "$REC_LANGUAGE_PICKER" "$_can_pick"
+    if [ "$_recording" = 1 ]; then
+        "$dialog" "$window_uuid" "$REC_LEVEL" omc_show
+    else
+        "$dialog" "$window_uuid" "$REC_LEVEL" omc_hide
+    fi
 
-    # With no batch to report on and no summary of the last one, the status line says what the
-    # tab is waiting for.
-    [ "$_active" = 0 ] || return 0
-    [ -f "$_pane/batch.summary" ] && return 0
+    # With nothing going on and no note about how the last batch or recording ended, the status
+    # line says what the tab is waiting for.
+    [ "$_active" = 0 ] && [ "$_recording" = 0 ] || return 0
+    [ -f "$_pane/status.note" ] && return 0
     [ "$_models_ready" = 1 ] || return 0
     local _label="$(tsv_field "$_pane/models.tsv" "$_model" 2)"
     if [ -z "$_model" ]; then
         set_status "No speech model can run on this Mac yet."
     elif [ "$_count" = 0 ]; then
-        set_status "Drop recordings here or add them, then press Transcribe. Each transcript is saved beside its recording."
+        set_status "Drop recordings here or add them, or press Record, then Transcribe. Each transcript is saved beside its recording."
     elif [ "$_other_busy" = 1 ]; then
         set_status "A live session is running. Stop it to transcribe recordings."
     elif [ "$_count" = 1 ]; then
