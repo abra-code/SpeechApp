@@ -113,6 +113,9 @@ CARD_INFO=6
 # The tabs, by their 0-based position in the TabView.
 TAB_INDEX_RECORDINGS=1
 
+# The last option of both Model pickers, which opens the Models window.
+DOWNLOAD_MODELS_OPTION="Download Models..."
+
 # The one global handoff key: recordings opened from Finder, the Dock, File > Open or the Services
 # menu are stashed here, one path per line, and consumed by the window that opens for them.
 PB_OPEN_PATH="SPEECH_OPEN_PATH"
@@ -386,6 +389,8 @@ model_display_label() {   # $1 = label, $2 = engine
 # Fill the pane's Model picker from its models.tsv and settle the selection: the saved model if
 # it is still offered, else apple.transcriber when present, else the first row. The selection is
 # recorded in the pane's model.id, which every handler reads rather than trusting a picker index.
+# The last option is always "Download Models...", which opens the Models window
+# (handle_model_changed), so a tab with no model to offer still has a way to get one.
 populate_model_picker() {   # $1 = pane dir
     local _pane="$1"
     local _options="["
@@ -401,14 +406,15 @@ populate_model_picker() {   # $1 = pane dir
         /bin/rm -f "$_pane/model.id" "$_pane/languages.tsv" "$_pane/language.tag"
         quiet_begin "$_pane"
         if [ "$PANE" = live ]; then
-            "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" '["No live models available"]'
+            "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" "[\"No live models available\",\"$DOWNLOAD_MODELS_OPTION\"]"
         else
-            "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" '["No models available"]'
+            "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" "[\"No models available\",\"$DOWNLOAD_MODELS_OPTION\"]"
         fi
+        "$dialog" "$window_uuid" "$MODEL_PICKER" 1
         "$dialog" "$window_uuid" "$LANGUAGE_PICKER" omc_set_property "options" '["-"]'
         return 0
     fi
-    _options="$_options]"
+    _options="$_options,\"$DOWNLOAD_MODELS_OPTION\"]"
 
     local _selected=""
     local _saved="$(setting_get "$PANE.model")"
@@ -527,6 +533,14 @@ handle_model_changed() {   # $1 = pane dir, $2 = picker value
     local _quiet=$?
     [ "$_quiet" -eq 0 ] && return 0
     case "$2" in ''|*[!0-9]*) return 0 ;; esac
+    # "Download Models..." follows the rows, or the one placeholder option when there are none.
+    local _rows="$(/usr/bin/awk 'NF { n++ } END { print n + 0 }' "$1/models.tsv" 2>/dev/null)"
+    local _download_option=$((${_rows:-0} + 1))
+    [ "${_rows:-0}" -eq 0 ] && _download_option=2
+    if [ "$2" -eq "$_download_option" ]; then
+        route_to_models_window "$1"
+        return 0
+    fi
     local _model="$(/usr/bin/sed -n "${2}p" "$1/models.tsv" 2>/dev/null | /usr/bin/cut -f1)"
     [ -n "$_model" ] || return 0
     [ "$_model" = "$(read_state "$1/model.id")" ] && return 0
@@ -539,6 +553,32 @@ handle_model_changed() {   # $1 = pane dir, $2 = picker value
     /bin/rm -f "$1/status.note"
     populate_language_picker "$1"
     /bin/rm -f "$1/actions.sig"
+}
+
+# "Download Models..." was picked: open the Models window, and put the picker back on the tab's
+# model, which the pick did not change. A model that finishes downloading reaches the picker
+# through reload_models_if_changed.
+route_to_models_window() {   # $1 = pane dir
+    quiet_begin "$1"
+    local _model="$(read_state "$1/model.id")"
+    local _line=""
+    [ -n "$_model" ] && _line="$(tsv_line_of "$1/models.tsv" "$_model")"
+    "$dialog" "$window_uuid" "$MODEL_PICKER" "${_line:-1}"
+    "$next_command" "$OMC_CURRENT_COMMAND_GUID" "speech.models"
+}
+
+# A Mac with no model this app can run gets one offer per app run to open the Models window. The
+# marker is a directory under Sessions, made atomically so two windows opening together offer once,
+# and removed with Sessions when the app quits.
+offer_models_window() {   # $1 = spool
+    [ -s "$1/recordings/models.tsv" ] && return 0
+    /bin/mkdir -p "$SESSIONS_DIR" 2>/dev/null
+    /bin/mkdir "$SESSIONS_DIR/models-offered" 2>/dev/null
+    local _first=$?
+    [ "$_first" -eq 0 ] || return 0
+    "$dialog" "$window_uuid" omc_window omc_present_alert "No speech models yet" \
+        "Speech needs a model to transcribe with. Download one in the Models window; every model runs entirely on this Mac." \
+        "Not Now:cancel:" "Open Models::speech.models"
 }
 
 # The Language picker changed. The saved preference is a language tag, never an index, because
@@ -1552,6 +1592,9 @@ refresh_live_actions() {   # $1 = pane dir
     [ "$_active" = 0 ] && [ -n "$_run" ] && [ -s "$_run/transcript.txt" ] && _can_copy=1
     local _can_pick=0
     [ "$_active" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
+    # The Model picker stays open with no model to offer: its last option opens the Models window.
+    local _can_pick_model=0
+    [ "$_active" = 0 ] && [ "$_models_ready" = 1 ] && _can_pick_model=1
 
     local _signature="$_can_live$_can_stop$_can_export$_can_copy$_can_pick|$_models_ready|$_state|$_other_busy$_other_recording|$_model"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
@@ -1561,14 +1604,14 @@ refresh_live_actions() {   # $1 = pane dir
     set_enabled "$LIVE_STOP_BTN" "$_can_stop"
     set_enabled "$LIVE_EXPORT_MENU" "$_can_export"
     set_enabled "$LIVE_COPY_BTN" "$_can_copy"
-    set_enabled "$LIVE_MODEL_PICKER" "$_can_pick"
+    set_enabled "$LIVE_MODEL_PICKER" "$_can_pick_model"
     set_enabled "$LIVE_LANGUAGE_PICKER" "$_can_pick"
 
     # With no session to report on, the status line says what the tab is waiting for.
     [ -z "$_run" ] || return 0
     [ "$_models_ready" = 1 ] || return 0
     if [ -z "$_model" ]; then
-        set_status "No speech model on this Mac can transcribe live yet."
+        set_status "No speech model on this Mac can transcribe live yet. Choose $DOWNLOAD_MODELS_OPTION in the Model picker to get one."
     elif [ "$_other_recording" = 1 ]; then
         set_status "A recording is being made in the Recordings tab. Live is available when it is done."
     elif [ "$_other_busy" = 1 ]; then
@@ -1624,6 +1667,9 @@ refresh_recordings_actions() {   # $1 = pane dir
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ -n "$_selected" ] && _can_remove=1
     local _can_pick=0
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
+    # The Model picker stays open with no model to offer: its last option opens the Models window.
+    local _can_pick_model=0
+    [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_models_ready" = 1 ] && _can_pick_model=1
 
     local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_models_ready|$_batch|$_capture_state|$_other_busy|$_count|$_selected|$_item_state|$_model"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
@@ -1635,7 +1681,7 @@ refresh_recordings_actions() {   # $1 = pane dir
     set_enabled "$REC_EXPORT_MENU" "$_can_export"
     set_enabled "$REC_COPY_BTN" "$_can_copy"
     set_enabled "$REC_REMOVE_BTN" "$_can_remove"
-    set_enabled "$REC_MODEL_PICKER" "$_can_pick"
+    set_enabled "$REC_MODEL_PICKER" "$_can_pick_model"
     set_enabled "$REC_LANGUAGE_PICKER" "$_can_pick"
     if [ "$_recording" = 1 ]; then
         "$dialog" "$window_uuid" "$REC_LEVEL" omc_show
@@ -1650,7 +1696,7 @@ refresh_recordings_actions() {   # $1 = pane dir
     [ "$_models_ready" = 1 ] || return 0
     local _label="$(tsv_field "$_pane/models.tsv" "$_model" 2)"
     if [ -z "$_model" ]; then
-        set_status "No speech model can run on this Mac yet."
+        set_status "No speech model can run on this Mac yet. Choose $DOWNLOAD_MODELS_OPTION in the Model picker to get one."
     elif [ "$_count" = 0 ]; then
         set_status "Drop recordings here or add them, or press Record, then Transcribe. Each transcript is saved beside its recording."
     elif [ "$_other_busy" = 1 ]; then

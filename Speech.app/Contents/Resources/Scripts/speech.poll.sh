@@ -38,6 +38,7 @@ use_pane live
 populate_model_picker "$spool/live"
 use_pane recordings
 populate_model_picker "$spool/recordings"
+offer_models_window "$spool"
 
 while [ -d "$spool" ]; do
     if [ -n "$app_pid" ]; then

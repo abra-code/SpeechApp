@@ -40,7 +40,7 @@ stop_log="$FAKE_SPEECH_LOG.stop"
 section "the Live picker offers only models that can stream, each marked with its engine"
 open_window
 check "only the live rows, Apple's with the logo and ggml's with [G]" \
-    "[\"Apple dictation (built in) $apple_logo\",\"Apple long-form (built in) $apple_logo\",\"Nemotron \\\"streaming\\\" (Q8_0) [G]\"]" \
+    "[\"Apple dictation (built in) $apple_logo\",\"Apple long-form (built in) $apple_logo\",\"Nemotron \\\"streaming\\\" (Q8_0) [G]\",\"Download Models...\"]" \
     "$(ui_prop "$LIVE_MODEL_PICKER" options)"
 check "apple.transcriber is selected" "apple.transcriber" "$(/bin/cat "$(live_pane)/model.id")"
 check "Live is enabled" "1" "$(ui_enabled "$LIVE_BTN")"
