@@ -15,6 +15,8 @@ if [ "$mkdir_status" -ne 0 ]; then
     exit 1
 fi
 : >> "$spool/recordings/list.tsv"
+# The app that owns this spool, so the next launch can remove it if this app is killed.
+write_state "$spool/app.pid" "${OMC_APP_PROCESS_ID:-}"
 
 for control in "$LIVE_BTN" "$LIVE_STOP_BTN" "$LIVE_EXPORT_MENU" "$LIVE_COPY_BTN" "$LIVE_MODEL_PICKER" "$LIVE_LANGUAGE_PICKER" \
     "$REC_TRANSCRIBE_BTN" "$REC_STOP_BTN" "$REC_EXPORT_MENU" "$REC_COPY_BTN" "$REC_REMOVE_BTN" "$REC_MODEL_PICKER" "$REC_LANGUAGE_PICKER"; do

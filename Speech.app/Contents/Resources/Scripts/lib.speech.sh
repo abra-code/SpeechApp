@@ -168,6 +168,31 @@ use_pane() {   # $1 = live | recordings
 spool_dir_for() { printf '%s' "$SESSIONS_DIR/$1"; }
 pane_dir_for() { printf '%s' "$SESSIONS_DIR/$1/$2"; }   # $1 = window uuid, $2 = pane
 
+# Remove the spools of an app that is gone. app.will.terminate removes Sessions when the app quits,
+# but an app that was killed leaves it behind: its first-run marker would keep the next run from
+# offering the Models window, and a batch it recorded as running would keep delete refusing that
+# model. Each spool names the app that made it in app.pid; one whose app is not running goes, and
+# so does one from before spools named their app. The first-run marker goes when no spool is left,
+# so a second copy of Speech that is still running keeps its own.
+sweep_sessions() {
+    [ -d "$SESSIONS_DIR" ] || return 0
+    local _kept=0
+    local _spool _alive
+    for _spool in "$SESSIONS_DIR"/*; do
+        [ -d "$_spool" ] || continue
+        [ "${_spool##*/}" = models-offered ] && continue
+        pid_alive "$(read_state "$_spool/app.pid")"
+        _alive=$?
+        if [ "$_alive" -eq 0 ]; then
+            _kept=1
+        else
+            /bin/rm -rf "$_spool"
+        fi
+    done
+    [ "$_kept" -eq 0 ] && /bin/rm -rf "$SESSIONS_DIR/models-offered"
+    return 0
+}
+
 # --- small helpers -----------------------------------------------------------------------------
 
 pb_set() { "$pasteboard" "$1" set "$2"; }

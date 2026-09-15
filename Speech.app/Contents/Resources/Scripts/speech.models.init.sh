@@ -12,6 +12,8 @@ if [ "$mkdir_status" -ne 0 ]; then
     exit 1
 fi
 write_state "$spool/kind" models
+# The app that owns this spool, so the next launch can remove it if this app is killed.
+write_state "$spool/app.pid" "${OMC_APP_PROCESS_ID:-}"
 # An add that has already ended was reported in the windows open at the time; this one skips it.
 add_state="$(read_state "$ADDING_DIR/state")"
 [ "$add_state" = running ] || write_state "$spool/add.opened" "$(read_state "$ADDING_DIR/token")"

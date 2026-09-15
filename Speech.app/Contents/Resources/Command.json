@@ -299,6 +299,12 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "app.will.launch",
+      "EXECUTION_MODE": "exe_script_file",
+      "WAIT_FOR_TASK_COMPLETION": true
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "app.will.terminate",
       "EXECUTION_MODE": "exe_script_file",
       "WAIT_FOR_TASK_COMPLETION": true
