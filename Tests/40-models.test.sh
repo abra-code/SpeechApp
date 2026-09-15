@@ -67,7 +67,7 @@ check "an installed row is downloaded" "$MODELS_INSTALLED_LIST" "$(card_containe
 check "a partial download is available to download" "$MODELS_AVAILABLE_LIST" "$(card_container 8)"
 check "every card is valid JSON with its id" "2010 2020 2030 2040 2050 2060 2070 2080" \
     "$(for r in 1 2 3 4 5 6 7 8; do card_json "$r" | /usr/bin/jq -r '.id'; done | /usr/bin/tr '\n' ' ' | /usr/bin/sed 's/ $//')"
-check "Apple's title carries the Apple logo" "Apple dictation (built in) $apple_logo" \
+check "Apple's title has no engine marker" "Apple dictation (built in)" \
     "$(card_json 1 | /usr/bin/jq -r '.children[0].children[0].children[0].properties.text')"
 check "a label with quotes survives, with ggml's squared G" "Nemotron \"streaming\" (Q8_0) $ggml_mark" \
     "$(card_json 7 | /usr/bin/jq -r '.children[0].children[0].children[0].properties.text')"

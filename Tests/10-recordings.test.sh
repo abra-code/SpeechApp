@@ -51,7 +51,7 @@ pane_call recordings populate_model_picker "$(rec_pane)"
 check "apple.transcriber is chosen when nothing is saved" "apple.transcriber" "$(/bin/cat "$(rec_pane)/model.id")"
 check "the picker points at it" "2" "$(ui_value "$REC_MODEL_PICKER")"
 check "labels carry the engine marker, and a quote is escaped" \
-    "[\"Apple dictation (built in) $apple_logo\",\"Apple long-form (built in) $apple_logo\",\"Whisper large-v3-turbo (Q8_0) $ggml_mark\",\"Nemotron \\\"streaming\\\" (Q8_0) $ggml_mark\",\"Download Models...\"]" \
+    "[\"Apple dictation (built in)\",\"Apple long-form (built in)\",\"Whisper large-v3-turbo (Q8_0) $ggml_mark\",\"Nemotron \\\"streaming\\\" (Q8_0) $ggml_mark\",\"Download Models...\"]" \
     "$(ui_prop "$REC_MODEL_PICKER" options)"
 check "Apple needs a language: no Automatic, sorted by name, Spanish by region" \
     '["English","German","Spanish (Latin America)","Spanish (Spain)"]' "$(ui_prop "$REC_LANGUAGE_PICKER" options)"

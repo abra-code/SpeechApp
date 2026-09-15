@@ -19,11 +19,11 @@ UI rendered by **ActionUI** - [github.com/abra-code/ActionUI](https://github.com
 
 ## Models and engines
 
-In the model pickers and the Models window, a model's name ends with a mark for its engine:
+In the model pickers and the Models window, a downloaded model's name ends with a mark for its engine. Apple's built-in models have no mark; their names already say Apple.
 
 | Mark | Engine | Runs on | Models |
 | --- | --- | --- | --- |
-| Apple logo | Apple Speech (SpeechAnalyzer) | Neural Engine, part of macOS 26 | Apple's long-form transcriber and its dictation engine |
+| none | Apple Speech (SpeechAnalyzer) | Neural Engine, part of macOS 26 | Apple's long-form transcriber and its dictation engine |
 | squared F | FluidAudio | Core ML on the Neural Engine | Parakeet, Parakeet Unified, Nemotron, Canary |
 | squared G | transcribe.cpp | ggml on the GPU | Whisper, Parakeet, Canary, Qwen3-ASR, Granite Speech, Nemotron |
 | squared M | MLX | MLX on the GPU | Parakeet, Whisper, Qwen3-ASR |

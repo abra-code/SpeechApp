@@ -22,8 +22,6 @@ TAB="$(printf '\t')"
 US="$(printf '\037')"
 NL="
 "
-# U+F8FF, the Apple logo, as UTF-8 bytes: the marker of Apple's own engines in a model label.
-APPLE_LOGO="$(printf '\357\243\277')"
 
 # --- Substitutable outside world ---------------------------------------------------------------
 # Everything below names something a test must not reach for real: the speech binary, which
@@ -407,17 +405,16 @@ reload_models_if_changed() {   # $1 = spool
 }
 
 # The label a picker shows: the catalog's label with the engine's marker after it - a squared M
-# for MLX, G for ggml, F for FluidAudio, the Apple logo for Apple's own engines. Picker options are
-# text only, so the marker is a character, not an SF Symbol; the squared letters (U+1F13C, U+1F136,
-# U+1F135) are in the system font, and not emoji, so they draw in the menu's own color. The status
-# line uses the plain label.
+# for MLX, G for ggml, F for FluidAudio. Apple's own engines get no marker, since their labels
+# already say Apple. Picker options are text only, so the marker is a character, not an SF Symbol;
+# the squared letters (U+1F13C, U+1F136, U+1F135) are in the system font, and not emoji, so they
+# draw in the menu's own color. The status line uses the plain label.
 MLX_MARK="$(printf '\360\237\204\274')"
 GGML_MARK="$(printf '\360\237\204\266')"
 FLUID_MARK="$(printf '\360\237\204\265')"
 
 model_display_label() {   # $1 = label, $2 = engine
     case "$2" in
-        apple) printf '%s %s' "$1" "$APPLE_LOGO" ;;
         mlx)   printf '%s %s' "$1" "$MLX_MARK" ;;
         ggml)  printf '%s %s' "$1" "$GGML_MARK" ;;
         fluid) printf '%s %s' "$1" "$FLUID_MARK" ;;

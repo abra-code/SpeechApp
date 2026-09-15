@@ -34,10 +34,8 @@ if [ ! -x "$OMCTEST_APP/Contents/Support/fingerprint" ]; then
     exit 1
 fi
 
-# The Apple logo, U+F8FF, which the applet appends to Apple's model labels, and the squared
-# letters it appends to the other engines' labels: M (U+1F13C) MLX, G (U+1F136) ggml, F (U+1F135)
-# FluidAudio.
-apple_logo="$(printf '\357\243\277')"
+# The squared letters the applet appends to model labels: M (U+1F13C) MLX, G (U+1F136) ggml,
+# F (U+1F135) FluidAudio. Apple's labels get none.
 mlx_mark="$(printf '\360\237\204\274')"
 ggml_mark="$(printf '\360\237\204\266')"
 fluid_mark="$(printf '\360\237\204\265')"
