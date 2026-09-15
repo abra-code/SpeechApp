@@ -27,9 +27,9 @@ def flag: if . then "1" else "0" end;
 
 def marker:
     if .engine == "apple" then " \uf8ff"
-    elif .engine == "mlx" then " [M]"
-    elif .engine == "ggml" then " [G]"
-    elif .engine == "fluid" then " [F]"
+    elif .engine == "mlx" then " \ud83c\udd3c"
+    elif .engine == "ggml" then " \ud83c\udd36"
+    elif .engine == "fluid" then " \ud83c\udd35"
     else "" end;
 
 def on_disk: (.installed_bytes // 0);

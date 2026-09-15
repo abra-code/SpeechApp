@@ -19,12 +19,14 @@ UI rendered by **ActionUI** - [github.com/abra-code/ActionUI](https://github.com
 
 ## Models and engines
 
-| Engine | Runs on | Models |
-| --- | --- | --- |
-| Apple Speech (SpeechAnalyzer) | Neural Engine, part of macOS 26 | Apple's long-form transcriber and its dictation engine |
-| FluidAudio | Core ML on the Neural Engine | Parakeet, Parakeet Unified, Nemotron, Canary |
-| transcribe.cpp | ggml on the GPU | Whisper, Parakeet, Canary, Qwen3-ASR, Granite Speech, Nemotron |
-| MLX | MLX on the GPU | Parakeet, Whisper, Qwen3-ASR |
+In the model pickers and the Models window, a model's name ends with a mark for its engine:
+
+| Mark | Engine | Runs on | Models |
+| --- | --- | --- | --- |
+| Apple logo | Apple Speech (SpeechAnalyzer) | Neural Engine, part of macOS 26 | Apple's long-form transcriber and its dictation engine |
+| squared F | FluidAudio | Core ML on the Neural Engine | Parakeet, Parakeet Unified, Nemotron, Canary |
+| squared G | transcribe.cpp | ggml on the GPU | Whisper, Parakeet, Canary, Qwen3-ASR, Granite Speech, Nemotron |
+| squared M | MLX | MLX on the GPU | Parakeet, Whisper, Qwen3-ASR |
 
 Which model is best depends on the language, the kind of recording and the Mac. The `speech` repository publishes one battery of measurements across six languages in [docs/benchmarks](https://github.com/abra-code/speech/blob/main/docs/benchmarks/README.md); treat them as a starting point, not a verdict for your Mac.
 

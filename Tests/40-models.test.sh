@@ -69,7 +69,7 @@ check "every card is valid JSON with its id" "2010 2020 2030 2040 2050 2060 2070
     "$(for r in 1 2 3 4 5 6 7 8; do card_json "$r" | /usr/bin/jq -r '.id'; done | /usr/bin/tr '\n' ' ' | /usr/bin/sed 's/ $//')"
 check "Apple's title carries the Apple logo" "Apple dictation (built in) $apple_logo" \
     "$(card_json 1 | /usr/bin/jq -r '.children[0].children[0].children[0].properties.text')"
-check "a label with quotes survives" "Nemotron \"streaming\" (Q8_0) [G]" \
+check "a label with quotes survives, with ggml's squared G" "Nemotron \"streaming\" (Q8_0) $ggml_mark" \
     "$(card_json 7 | /usr/bin/jq -r '.children[0].children[0].children[0].properties.text')"
 check "the detail line counts languages and says what it transcribes" "2 languages - Recordings and live" \
     "$(card_json 3 | /usr/bin/jq -r '.children[0].children[1].properties.text')"
@@ -292,7 +292,7 @@ FAKE_SPEECH_DOWNLOAD=ok
 lib_call bump_models_stamp
 lib_call reload_models_if_changed "$(spool)"
 check "the idle Live tab offers the new model" "fluid.parakeet-v3@int8" "$(/usr/bin/cut -f1 "$(live_pane)/models.tsv" | /usr/bin/grep -F 'fluid.parakeet-v3@int8')"
-case "$(ui_prop "$LIVE_MODEL_PICKER" options)" in *"Parakeet v3 (int8) [F]"*) offered=yes ;; *) offered=no ;; esac
+case "$(ui_prop "$LIVE_MODEL_PICKER" options)" in *"Parakeet v3 (int8) $fluid_mark"*) offered=yes ;; *) offered=no ;; esac
 check "in its picker" "yes" "$offered"
 check "the busy Recordings tab keeps its list" "" "$(/usr/bin/grep -F 'fluid.parakeet-v3@int8' "$(rec_pane)/models.tsv")"
 check_exists "and waits to take the new one" "$(rec_pane)/models.pending"
