@@ -50,6 +50,9 @@ SETTINGS_DIR="$APP_SUPPORT/Settings"
 # A download runs speech under a worker of its own, which a test runs for real with the fake speech.
 DOWNLOAD_WORKER_SCRIPT="$SCRIPTS_DIR/speech.download.worker.sh"
 DOWNLOADS_DIR="$APP_SUPPORT/Downloads"
+# Adding a model the catalog does not list works the same way, one add at a time.
+ADD_WORKER_SCRIPT="$SCRIPTS_DIR/speech.add.worker.sh"
+ADDING_DIR="$APP_SUPPORT/Adding"
 # A new value here means a model was downloaded or deleted; every window reads the catalog again.
 MODELS_STAMP="$APP_SUPPORT/models.changed"
 
@@ -89,9 +92,11 @@ REC_LEVEL=170
 REC_TRANSCRIPT=210
 REC_STATUS=310
 
-# The Models window (speech.models.json) and its information sheet (speech.model.info.json).
+# The Models window (speech.models.json), its information sheet (speech.model.info.json) and its
+# Add a Model sheet (speech.model.add.json).
 MODELS_STATUS=910
 MODELS_DONE_BTN=920
+MODELS_ADD_BTN=930
 MODELS_BUILTIN_BOX=1100
 MODELS_BUILTIN_LIST=1102
 MODELS_INSTALLED_BOX=1200
@@ -99,6 +104,9 @@ MODELS_INSTALLED_LIST=1202
 MODELS_AVAILABLE_BOX=1300
 MODELS_AVAILABLE_LIST=1302
 MODEL_INFO_TEXT=4010
+MODEL_ADD_REPO=4110
+MODEL_ADD_QUANT=4111
+MODEL_ADD_ERROR=4112
 
 # A model's card, inserted at run time: its id is MODEL_CARD_BASE + row * 10, and its parts sit at
 # these offsets from it (speech.models.jq builds the card).

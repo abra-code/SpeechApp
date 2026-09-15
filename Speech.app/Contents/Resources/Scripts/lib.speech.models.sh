@@ -16,6 +16,9 @@
 #     id, worker.pid, speech.pid, events.jsonl, stderr.log
 #     state, message              running | failed, and speech's reason. A download that finished
 #                                 or stopped removes its directory: the catalog then tells the rest.
+#   Adding/                       the model being added, or the last one; see "adding a model"
+#   Sessions/<window>/add.shown   what the window's status line last said about an add
+#   Sessions/<window>/add.opened  the add that had already ended when the window opened
 
 . "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.sh"
 
@@ -135,6 +138,22 @@ download_worker_alive() {   # $1 = download dir
     return 1
 }
 
+# Wait for a speech process this shell started, and return its exit status. A signal the caller
+# traps interrupts wait before speech has exited, so wait again for speech's own status.
+wait_for_speech() {   # $1 = pid
+    wait "$1"
+    local _status=$?
+    local _alive
+    while [ "$_status" -gt 128 ]; do
+        pid_alive "$1"
+        _alive=$?
+        [ "$_alive" -eq 0 ] || break
+        wait "$1"
+        _status=$?
+    done
+    return "$_status"
+}
+
 download_progress_text() {   # $1 = download dir
     /usr/bin/tail -n 40 "$1/events.jsonl" 2>/dev/null \
         | "$jq" -R -r -n --arg want progress -f "$SCRIPTS_DIR/speech.download.jq" 2>/dev/null
@@ -219,6 +238,176 @@ refresh_download_cards() {   # $1 = spool
         push_card "$_row" "$_text" "$_download" "$_delete"
         write_state "$1/card.$_row.sig" "$_sig"
     done
+}
+
+# --- adding a model ------------------------------------------------------------------------------
+# Add Model... (speech.model.add.json) runs `speech models add` for a Hugging Face repository under
+# a worker of its own (speech.add.worker.sh), one add at a time, in ADDING_DIR:
+#   repo, quant, token          what was asked for, and a value no other add shares
+#   worker.pid, speech.pid, events.jsonl, stderr.log
+#   state, message              running | done | failed | stopped; the id added, or speech's reason
+#   how                         for a done add: added, downloaded (already listed, speech finished
+#                               its download) or listed (already listed and downloaded)
+# The directory stays after the add ends, so every open Models window can report how it ended,
+# and is replaced by the next add. Only transcribe.cpp (ggml) models can be added: it is the one
+# engine that runs a model from its file alone.
+
+# The repository in what was typed: owner/name, or a huggingface.co address of the repository or
+# of a page inside it. Prints nothing, and returns non-zero, when there is none.
+repo_from_input() {   # $1 = the Repository field
+    local _text="$(printf '%s' "$1" | /usr/bin/sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    local _address=0
+    case "$_text" in http://*|https://*) _address=1 ;; esac
+    _text="${_text#https://}"
+    _text="${_text#http://}"
+    _text="${_text#www.}"
+    case "$_text" in
+        huggingface.co/*) _text="${_text#huggingface.co/}" ;;
+        hf.co/*) _text="${_text#hf.co/}" ;;
+        *) [ "$_address" -eq 0 ] || return 1 ;;
+    esac
+    _text="${_text%%[?#]*}"
+    case "$_text" in */*) ;; *) return 1 ;; esac
+    local _owner="${_text%%/*}"
+    local _rest="${_text#*/}"
+    local _name="${_rest%%/*}"
+    _name="${_name%.git}"
+    # An owner starting with a dash would reach speech as an option, not a repository.
+    case "$_owner" in ''|.|..|-*|*[!A-Za-z0-9._-]*) return 1 ;; esac
+    case "$_name" in ''|.|..|*[!A-Za-z0-9._-]*) return 1 ;; esac
+    printf '%s/%s' "$_owner" "$_name"
+}
+
+# The Quantization field, trimmed. Empty is fine: speech then takes the only file, or the Q8_0.
+# Returns non-zero when it holds anything but letters, digits and underscores.
+quant_from_input() {   # $1 = the Quantization field
+    local _text="$(printf '%s' "$1" | /usr/bin/sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    case "$_text" in *[!A-Za-z0-9_]*) return 1 ;; esac
+    printf '%s' "$_text"
+}
+
+set_add_error() { "$dialog" "$window_uuid" "$MODEL_ADD_ERROR" "$1"; }   # $1 = text
+
+# Returns 0 while the add's worker is running, judged by its argv, as for a download.
+add_worker_alive() {
+    local _pid="$(read_state "$ADDING_DIR/worker.pid")"
+    case "$_pid" in ''|*[!0-9]*) return 1 ;; esac
+    local _repo="$(read_state "$ADDING_DIR/repo")"
+    [ -n "$_repo" ] || return 1
+    local _args="$(/bin/ps -p "$_pid" -o args= 2>/dev/null)"
+    case "$_args" in
+        "/bin/sh $ADD_WORKER_SCRIPT $_repo "*) return 0 ;;
+    esac
+    return 1
+}
+
+# Why an add cannot start now; prints nothing when it can.
+add_refusal() {
+    add_worker_alive
+    local _alive=$?
+    [ "$_alive" -eq 0 ] || return 0
+    printf 'Speech is still adding %s. Wait for it to finish, then add another.' "$(read_state "$ADDING_DIR/repo")"
+}
+
+# Record how an add ended. A model that was added changes the catalog, so every window is told
+# before the state is written: a window that sees the add done has the new card to name.
+settle_add() {   # $1 = add dir, $2 = speech's exit status
+    local _outcome="$("$jq" -R -r -n --arg want added -f "$SCRIPTS_DIR/speech.download.jq" "$1/events.jsonl" 2>/dev/null)"
+    local _state _message
+    local _how=listed
+    case "$_outcome" in
+        "added$US"*)
+            _state=done
+            _how=added
+            _message="${_outcome#added$US}"
+            ;;
+        "installed$US"*)
+            _state=done
+            _how=downloaded
+            _message="${_outcome#installed$US}"
+            ;;
+        "error$US"*)
+            _state=failed
+            _message="${_outcome#error$US}"
+            ;;
+        *)
+            if [ "$2" -eq 0 ]; then
+                _state=done
+            elif [ "$2" -gt 128 ]; then
+                _state=stopped
+            else
+                _state=failed
+                _message="$(/usr/bin/head -1 "$1/stderr.log" 2>/dev/null)"
+            fi
+            ;;
+    esac
+    if [ "$_state" = failed ] && [ -z "$_message" ]; then
+        _message="speech ended with status $2 and did not say why."
+    fi
+    [ "$_state" = done ] && bump_models_stamp
+    write_state "$1/how" "$_how"
+    write_state "$1/message" "$_message"
+    write_state "$1/state" "$_state"
+}
+
+# Put the add on the window's status line - its progress, or how it ended - and offer Add Model...
+# only when no add is running. An add that ended before the window opened is not reported, and
+# one whose worker is gone without saying how it ended (the app was killed) clears what the line
+# said about it.
+refresh_add_status() {   # $1 = spool
+    local _token="$(read_state "$ADDING_DIR/token")"
+    local _repo="$(read_state "$ADDING_DIR/repo")"
+    local _state="$(read_state "$ADDING_DIR/state")"
+    local _text=""
+    local _enabled=1
+    local _show=1
+    local _alive
+    case "$_state" in
+        running)
+            add_worker_alive
+            _alive=$?
+            if [ "$_alive" -eq 0 ]; then
+                _text="Adding $_repo: $(/usr/bin/tail -n 40 "$ADDING_DIR/events.jsonl" 2>/dev/null \
+                    | "$jq" -R -r -n --arg want adding -f "$SCRIPTS_DIR/speech.download.jq" 2>/dev/null)"
+                _enabled=0
+            else
+                _state=stopped
+                _show=0
+            fi
+            ;;
+        done)
+            local _id="$(read_state "$ADDING_DIR/message")"
+            local _how="$(read_state "$ADDING_DIR/how")"
+            local _row=""
+            [ -n "$_id" ] && _row="$(row_of_id "$1" "$_id")"
+            local _label=""
+            [ -n "$_row" ] && _label="$(card_field "$1" "$_row" 3)"
+            case "$_how" in
+                added) _text="Added ${_label:-$_id} from $_repo. It is listed under Downloaded." ;;
+                downloaded) _text="${_label:-$_id} was already in the model list. Speech finished downloading it." ;;
+                *) _text="$_repo is already in the model list." ;;
+            esac
+            ;;
+        failed)
+            _text="Could not add $_repo: $(read_state "$ADDING_DIR/message")"
+            ;;
+        *)
+            _show=0
+            ;;
+    esac
+    if [ "$_state" != running ] && [ -n "$_token" ] && [ "$_token" = "$(read_state "$1/add.opened")" ]; then
+        _show=0
+    fi
+    local _sig="$_token|$_state|$_show|$_text"
+    local _old="$(read_state "$1/add.shown")"
+    [ "$_sig" = "$_old" ] && return 0
+    write_state "$1/add.shown" "$_sig"
+    set_enabled "$MODELS_ADD_BTN" "$_enabled"
+    if [ "$_show" = 1 ]; then
+        set_models_status "$_text"
+    else
+        case "$_old" in "$_token|running|1|"*) set_models_status "" ;; esac
+    fi
 }
 
 # --- deletion ------------------------------------------------------------------------------------
@@ -354,4 +543,5 @@ poll_models_window() {   # $1 = spool
     fi
     render_cards "$1"
     refresh_download_cards "$1"
+    refresh_add_status "$1"
 }

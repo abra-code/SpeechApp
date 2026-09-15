@@ -25,16 +25,8 @@ write_state "$dir/speech.pid" "$speech_pid"
 # way.
 trap 'signal_speech_pid "$speech_pid" TERM' TERM INT HUP
 
-wait "$speech_pid"
+wait_for_speech "$speech_pid"
 exit_status=$?
-# A trapped signal interrupts wait before speech has exited; wait again for speech's own status.
-while [ "$exit_status" -gt 128 ]; do
-    pid_alive "$speech_pid"
-    alive_status=$?
-    [ "$alive_status" -eq 0 ] || break
-    wait "$speech_pid"
-    exit_status=$?
-done
 
 settle_download "$dir" "$exit_status"
 

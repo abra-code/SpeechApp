@@ -270,6 +270,25 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.models.add",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.add.start",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_VIEW_4110_VALUE": "",
+        "OMC_ACTIONUI_VIEW_4111_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.models.add.cancel",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.models.done",
       "EXECUTION_MODE": "exe_script_file"
     },

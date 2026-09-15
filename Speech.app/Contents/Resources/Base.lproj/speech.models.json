@@ -69,6 +69,7 @@
       "properties": { "spacing": 8, "frame": { "maxWidth": "infinity" } },
       "children": [
         { "type": "Text", "id": 910, "properties": { "text": "", "font": "caption", "foregroundStyle": "secondary", "frame": { "maxWidth": "infinity", "alignment": "leading" } } },
+        { "type": "Button", "id": 930, "properties": { "title": "Add Model...", "buttonStyle": "bordered", "help": "Add a transcribe.cpp model from Hugging Face that is not in the list", "actionID": "speech.models.add" } },
         { "type": "Button", "id": 920, "properties": { "title": "Done", "buttonStyle": "borderedProminent", "keyboardShortcut": { "key": "escape" }, "actionID": "speech.models.done" } }
       ]
     }

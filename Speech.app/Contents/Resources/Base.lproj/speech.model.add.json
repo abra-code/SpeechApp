@@ -1,0 +1,50 @@
+{
+  "type": "VStack",
+  "properties": { "spacing": 12, "padding": 20, "alignment": "leading", "frame": { "minWidth": 480, "idealWidth": 540 } },
+  "children": [
+    { "type": "Text", "properties": { "text": "Add a Model", "font": "title3" } },
+    {
+      "type": "Text",
+      "properties": {
+        "text": "Add a transcribe.cpp (ggml) speech model from Hugging Face that is not in the list. Speech downloads it, checks that it can transcribe with it, and lists it under Downloaded.",
+        "font": "callout",
+        "foregroundStyle": "secondary"
+      }
+    },
+    {
+      "type": "HStack",
+      "properties": { "spacing": 8 },
+      "children": [
+        { "type": "Text", "properties": { "text": "Repository", "frame": { "width": 100, "alignment": "trailing" } } },
+        { "type": "TextField", "id": 4110, "properties": { "prompt": "owner/name, or its huggingface.co address" } }
+      ]
+    },
+    {
+      "type": "HStack",
+      "properties": { "spacing": 8 },
+      "children": [
+        { "type": "Text", "properties": { "text": "Quantization", "frame": { "width": 100, "alignment": "trailing" } } },
+        { "type": "TextField", "id": 4111, "properties": { "prompt": "Optional, for example Q4_K_M" } }
+      ]
+    },
+    {
+      "type": "Text",
+      "properties": {
+        "text": "Without a quantization, Speech takes the repository's only GGUF file, or else its Q8_0 file.",
+        "font": "caption",
+        "foregroundStyle": "secondary",
+        "padding": { "leading": 108 }
+      }
+    },
+    { "type": "Text", "id": 4112, "properties": { "text": "", "font": "caption", "foregroundStyle": "red" } },
+    {
+      "type": "HStack",
+      "properties": { "spacing": 8, "frame": { "maxWidth": "infinity" } },
+      "children": [
+        { "type": "Spacer" },
+        { "type": "Button", "properties": { "title": "Cancel", "buttonStyle": "bordered", "role": "cancel", "keyboardShortcut": { "key": "escape" }, "actionID": "speech.models.add.cancel" } },
+        { "type": "Button", "properties": { "title": "Add", "buttonStyle": "borderedProminent", "keyboardShortcut": { "key": "return" }, "actionID": "speech.models.add.start" } }
+      ]
+    }
+  ]
+}

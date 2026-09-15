@@ -16,6 +16,10 @@
 #   FAKE_SPEECH_DOWNLOAD   `models download` behavior: ok (default), fail (an error event, exit 1),
 #                          or hang (one progress event, then wait to be signaled)
 #   FAKE_SPEECH_DELETE     `models delete` behavior: ok (default) or fail (a message, exit 1)
+#   FAKE_SPEECH_ADD        `models add` behavior: ok (default; appends the added row to the
+#                          catalog copy), fail (speech's usage error, exit 2), hang (one progress
+#                          event, then wait to be signaled), exists (already listed: exit 0 with
+#                          nothing to say), or finish (already listed, its download finished)
 #
 # In hang mode the process replaces itself with sleep under its own name (exec -a), so its argv
 # still starts with the SPEECH_BIN path. That is what the applet's argv check requires before it
@@ -80,6 +84,46 @@ case "$verb" in
                 ;;
             status)
                 printf '{"model":"%s","path":"/nonexistent/Models/%s","state":"installed","t":0.01,"type":"model.entry"}\n' "$id" "$id"
+                exit 0
+                ;;
+            add)
+                # The id speech would make: the repository's name without -gguf, lowercased, at
+                # the quantization asked for or Q8_0.
+                repo="$id"
+                quant=""
+                [ "$3" = --quant ] && quant="$4"
+                name="${repo#*/}"
+                name="$(printf '%s' "${name%-gguf}" | /usr/bin/tr 'A-Z' 'a-z')"
+                variant="$(printf '%s' "${quant:-q8_0}" | /usr/bin/tr 'A-Z' 'a-z')"
+                upper="$(printf '%s' "$variant" | /usr/bin/tr 'a-z' 'A-Z')"
+                added="ggml.$name@$variant"
+                case "${FAKE_SPEECH_ADD:-ok}" in
+                    fail)
+                        printf '{"code":"usage","message":"%s has several .gguf files; pick one with --quant or --file (have: a-F16.gguf, a-Q4_K_M.gguf)","t":0.5,"type":"error"}\n' "$repo"
+                        printf 'speech models add: %s has several .gguf files\n' "$repo" >&2
+                        exit 2
+                        ;;
+                    hang)
+                        printf '{"bytes_done":120000000,"bytes_total":480000000,"file":"model.gguf","fraction":0.25,"model":"%s","phase":"downloading","t":0.1,"type":"model.progress"}\n' "$added"
+                        exec -a "$0" /bin/sleep 600
+                        ;;
+                    exists)
+                        exit 0
+                        ;;
+                    finish)
+                        printf '{"bytes":480000000,"model":"%s","path":"/nonexistent/Models/%s","t":0.3,"type":"model.installed"}\n' "$added" "$added"
+                        exit 0
+                        ;;
+                esac
+                printf '{"bytes_done":480000000,"bytes_total":480000000,"file":"model.gguf","fraction":1,"model":"%s","phase":"downloading","t":0.2,"type":"model.progress"}\n' "$added"
+                printf '{"bytes":480000000,"model":"%s","path":"/nonexistent/Models/%s","t":0.3,"type":"model.installed"}\n' "$added" "$added"
+                if [ -n "$catalog" ]; then
+                    /usr/bin/jq --arg id "$added" --arg label "$name ($upper)" --arg repo "$repo" \
+                        '.rows += [{"id": $id, "label": $label, "engine": "ggml", "family": "unknown", "role": "transcriber", "state": "installed", "available": true, "installed": true, "installed_bytes": 480000000, "size_bytes": 480000000, "source": $repo, "languages": ["en"], "modes": ["batch"]}]' \
+                        "$catalog" > "$catalog.tmp"
+                    /bin/mv -f "$catalog.tmp" "$catalog"
+                fi
+                printf '{"added":{"catalog_file":"/nonexistent/Catalog/%s.json","family":"unknown","id":"%s","languages":["en"]}}\n' "$name" "$added"
                 exit 0
                 ;;
         esac
