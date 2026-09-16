@@ -273,6 +273,11 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.reveal",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.benchmark.run",
       "EXECUTION_MODE": "exe_script_file"
     },

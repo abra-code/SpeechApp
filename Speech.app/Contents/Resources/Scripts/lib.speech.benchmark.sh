@@ -900,6 +900,8 @@ refresh_benchmark_actions() {   # $1 = spool
     [ -n "$_selected" ] && [ "$_selected" != "$_cell" ] && _can_remove=1
     local _can_download=0
     [ "$_models_ready" = 1 ] && [ -n "$_corpus" ] && [ "$_present" = 0 ] && [ "$_downloading" = 0 ] && _can_download=1
+    local _can_reveal=0
+    [ "$_models_ready" = 1 ] && [ "$_present" = 1 ] && _can_reveal=1
 
     # A corpus downloading or failed to download says so before the measurement's progress, which the
     # queue table shows anyway: it is the corpus the user is looking at.
@@ -936,12 +938,13 @@ refresh_benchmark_actions() {   # $1 = spool
         fi
     fi
 
-    local _signature="$_can_add$_can_run$_can_stop$_can_remove$_can_download$_models_ready|$_text"
+    local _signature="$_can_add$_can_run$_can_stop$_can_remove$_can_download$_can_reveal$_models_ready|$_text"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
     set_enabled "$BENCH_ADD_BTN" "$_can_add"
     set_enabled "$BENCH_DOWNLOAD_BTN" "$_can_download"
+    set_enabled "$BENCH_REVEAL_BTN" "$_can_reveal"
     set_enabled "$BENCH_RUN_BTN" "$_can_run"
     set_enabled "$BENCH_STOP_BTN" "$_can_stop"
     set_enabled "$BENCH_REMOVE_BTN" "$_can_remove"

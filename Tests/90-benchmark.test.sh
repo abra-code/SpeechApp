@@ -77,6 +77,7 @@ check "the status offers the download, with its size" \
     "FLEURS Chinese (Mandarin) is not on this Mac yet. Press Download to get it (525 MB)." \
     "$(ui_value "$BENCH_STATUS")"
 check "Download is enabled" "1" "$(ui_enabled "$BENCH_DOWNLOAD_BTN")"
+check "Show in Finder is disabled, with no corpus to show" "0" "$(ui_enabled "$BENCH_REVEAL_BTN")"
 check "the reference has nothing for it" "0" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
 
 section "Choosing Polish offers the models that speak it, and the reference results for it"
@@ -105,9 +106,26 @@ tick
 check_contains "Polish is on this Mac now" '"FLEURS Polish",' "$(ui_prop "$BENCH_CORPUS_PICKER" options)"
 check "Add is enabled" "1" "$(ui_enabled "$BENCH_ADD_BTN")"
 check "Download is disabled for a corpus on this Mac" "0" "$(ui_enabled "$BENCH_DOWNLOAD_BTN")"
+check "Show in Finder is enabled for it" "1" "$(ui_enabled "$BENCH_REVEAL_BTN")"
 check "the status says what to do" \
     "Add models to the queue, then press Run. Results from this Mac are listed above the reference results." \
     "$(ui_value "$BENCH_STATUS")"
+
+section "Show in Finder selects the corpus folder, and says so when the corpus has gone"
+/bin/rm -f "$FAKE_OPEN_LOG"
+omc_run speech.benchmark.reveal
+check_status "reveal exits cleanly" 0
+check "the Finder was asked to reveal the folder" "-R $SPEECH_APP_SUPPORT/Corpora/fleurs/pl_pl" "$(/bin/cat "$FAKE_OPEN_LOG" 2>/dev/null)"
+/bin/mv "$SPEECH_APP_SUPPORT/Corpora/fleurs/pl_pl/manifest.tsv" "$OMCTEST_WORK/pl_pl.manifest.tsv"
+/bin/rm -f "$FAKE_OPEN_LOG"
+omc_run speech.benchmark.reveal
+check "the Finder was not asked" "" "$(/bin/cat "$FAKE_OPEN_LOG" 2>/dev/null)"
+check "the status says it is gone" "FLEURS Polish is not on this Mac." "$(ui_value "$BENCH_STATUS")"
+tick
+check "and the next tick turns Show in Finder off and Download back on" "0 1" "$(ui_enabled "$BENCH_REVEAL_BTN") $(ui_enabled "$BENCH_DOWNLOAD_BTN")"
+/bin/mv "$OMCTEST_WORK/pl_pl.manifest.tsv" "$SPEECH_APP_SUPPORT/Corpora/fleurs/pl_pl/manifest.tsv"
+tick
+check "a corpus that comes back turns it on again" "1 0" "$(ui_enabled "$BENCH_REVEAL_BTN") $(ui_enabled "$BENCH_DOWNLOAD_BTN")"
 
 # ------------------------------------------------------------------------------------------------
 section "Add to Queue queues the tab's model, corpus and size, once each"

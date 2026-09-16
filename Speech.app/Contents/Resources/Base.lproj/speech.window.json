@@ -413,6 +413,18 @@
                       "actionID": "speech.benchmark.download"
                     }
                   },
+                  {
+                    "type": "Button",
+                    "id": 445,
+                    "properties": {
+                      "title": "Show in Finder",
+                      "systemImage": "finder",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "help": "Show the corpus folder in the Finder",
+                      "actionID": "speech.benchmark.reveal"
+                    }
+                  },
                   { "type": "Spacer" }
                 ]
               },
