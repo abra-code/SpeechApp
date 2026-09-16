@@ -1,6 +1,6 @@
 # speech.benchmark.results.awk - the Benchmark tab's results table for one corpus and sample size.
 #
-#   awk -F'\t' -v corpus=pl_pl -v sample=100 -v chip="Apple M5" -v macos=26.6.2 \
+#   awk -F'\t' -v corpus=pl_pl -v sample=100 -v macos=26.6.2 \
 #       -v mlx=<mark> -v ggml=<mark> -v fluid=<mark> \
 #       -f speech.benchmark.results.awk role=labels labels.tsv role=results results.tsv \
 #       role=reference measurements.tsv
@@ -84,7 +84,7 @@ role == "results" {
     newest[id] = date
     machine = v("machine")
     mac = v("macos")
-    measured = ((chip == "" || machine == "" || machine == chip) ? "This Mac" : machine) when(mac, date)
+    measured = (machine == "" ? "This Mac" : machine) when(mac, date)
     note = joined(v("note"), apple_note(id, mac))
     if (v("status") == "ok") {
         mine[id] = sort_key(1, v("wer_pct"), id) "\t" name_of(id) "\t" pct(v("wer_pct")) "\t" pct(v("cer_pct")) "\t" \

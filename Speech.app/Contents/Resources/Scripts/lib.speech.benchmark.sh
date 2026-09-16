@@ -766,10 +766,10 @@ render_results_table() {   # $1 = spool
     local _sig="$_corpus|$_sample|$(/usr/bin/stat -f '%m %z' "$_results" "$_reference" "$_labels" 2>/dev/null | /usr/bin/tr '\n' ' ')"
     [ "$_sig" = "$(read_state "$_pane/results.sig")" ] && return 0
 
-    local _this_mac="$(read_state "$1/this_mac")"
+    local _this_macos="$(read_state "$1/this_macos")"
     local _rows="$_pane/results.rows.tmp.$$"
     /usr/bin/awk -F'\t' -v corpus="$_corpus" -v sample="$_sample" \
-        -v chip="${_this_mac%%"$TAB"*}" -v macos="${_this_mac#*"$TAB"}" \
+        -v macos="$_this_macos" \
         -v mlx="$MLX_MARK" -v ggml="$GGML_MARK" -v fluid="$FLUID_MARK" \
         -f "$SCRIPTS_DIR/speech.benchmark.results.awk" \
         role=labels "$_labels" role=results "$_results" role=reference "$_reference" 2>/dev/null \

@@ -427,11 +427,11 @@ read_catalog() {   # $1 = spool
     fi
     /bin/mv -f "$_spool/models.tsv.tmp" "$_spool/models.tsv"
     # Every row's label, runnable or not, for the Benchmark tab's tables (id <TAB> label <TAB>
-    # engine), and this Mac's chip and macOS version, which decide what counts as measured here.
+    # engine), and this Mac's macOS version, which decides whether an Apple row needs a note.
     "$jq" -r '.rows[] | [.id, .label, (.engine // "")] | map(tostring | gsub("[\t\r\n]"; " ")) | join("\t")' \
         "$_spool/catalog.json" > "$_spool/labels.tsv.tmp" 2>/dev/null
     /bin/mv -f "$_spool/labels.tsv.tmp" "$_spool/labels.tsv"
-    write_state "$_spool/this_mac" "$("$jq" -r '[(.machine.chip // ""), (.machine.macos // "")] | map(tostring) | join("\t")' "$_spool/catalog.json" 2>/dev/null)"
+    write_state "$_spool/this_macos" "$("$jq" -r '.machine.macos // "" | tostring' "$_spool/catalog.json" 2>/dev/null)"
 }
 
 # A pane's own models.tsv, from the spool's: Recordings all of it, Live the rows that can stream,

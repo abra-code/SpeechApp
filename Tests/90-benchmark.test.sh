@@ -47,9 +47,6 @@ choose() {   # $1 = picker, $2 = 1-based option, $3 = handler
 this_macos="$(/usr/bin/sw_vers -productVersion)"
 this_chip="$(/usr/sbin/sysctl -n machdep.cpu.brand_string)"
 today="$(/bin/date -u +%Y-%m-%d)"
-# The fixture catalog says this Mac is an Apple M5; a result taken on another chip is named by it.
-where="This Mac"
-[ "$this_chip" = "Apple M5" ] || where="$this_chip"
 ggml_whisper="$(label_of ggml.whisper-large-v3-turbo@q8_0) $ggml_mark"
 ggml_nemotron="$(label_of ggml.nemotron-3.5-asr-streaming-0.6b@q8_0) $ggml_mark"
 dictation="$(label_of apple.dictation)"
@@ -157,7 +154,7 @@ check "the second is the full set" "all" "$(result_field 3 26)"
 check "a finished measurement leaves no run behind" "0" "$(/bin/ls "$benchmarks/runs" 2>/dev/null | /usr/bin/awk 'END { print NR }')"
 tick
 check "this Mac's result is listed above the reference" \
-    "$dictation	8.33%	5.12%	42.4x	480 MB	3	This Mac, macOS 26.6.2, 2026-01-01	" \
+    "$dictation	8.33%	5.12%	42.4x	480 MB	3	Apple M5, macOS 26.6.2, 2026-01-01	" \
     "$(table_row "$BENCH_RESULTS_TABLE" 1)"
 check "the reference rows follow" "4" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
 check "the queue table is empty" "0" "$(ui_row_count "$BENCH_QUEUE_TABLE")"
@@ -183,7 +180,7 @@ failed_note=""
 [ "$this_macos" = "26.6.2" ] ||
     failed_note=" Measured on macOS $this_macos. Apple's engines change with macOS, and this Mac runs 26.6.2."
 check "the model's newest measurement is the failure, above the reference" \
-    "$dictation	Failed	-	-	-	-	$where, macOS $this_macos, $today	no rows could be scored, so there is no measurement: cannot decode the recording$failed_note" \
+    "$dictation	Failed	-	-	-	-	$this_chip, macOS $this_macos, $today	no rows could be scored, so there is no measurement: cannot decode the recording$failed_note" \
     "$(table_row "$BENCH_RESULTS_TABLE" 1)"
 check "the older result is not listed twice" "4" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
 choose "$BENCH_SAMPLE_PICKER" 1 speech.benchmark.sample.changed
