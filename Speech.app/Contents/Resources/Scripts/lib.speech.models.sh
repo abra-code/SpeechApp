@@ -138,22 +138,6 @@ download_worker_alive() {   # $1 = download dir
     return 1
 }
 
-# Wait for a speech process this shell started, and return its exit status. A signal the caller
-# traps interrupts wait before speech has exited, so wait again for speech's own status.
-wait_for_speech() {   # $1 = pid
-    wait "$1"
-    local _status=$?
-    local _alive
-    while [ "$_status" -gt 128 ]; do
-        pid_alive "$1"
-        _alive=$?
-        [ "$_alive" -eq 0 ] || break
-        wait "$1"
-        _status=$?
-    done
-    return "$_status"
-}
-
 download_progress_text() {   # $1 = download dir
     /usr/bin/tail -n 40 "$1/events.jsonl" 2>/dev/null \
         | "$jq" -R -r -n --arg want progress -f "$SCRIPTS_DIR/speech.download.jq" 2>/dev/null

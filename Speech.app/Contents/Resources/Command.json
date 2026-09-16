@@ -214,6 +214,58 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.corpus.changed",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_VIEW_425_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.sample.changed",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_VIEW_426_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.model.changed",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_VIEW_427_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.add",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.run",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.stop",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.queue.selected",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_TABLE_470_COLUMN_4_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.remove",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.window.cancel",
       "EXECUTION_MODE": "exe_script_file"
     },

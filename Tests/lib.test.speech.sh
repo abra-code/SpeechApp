@@ -20,10 +20,12 @@ SPEECH_RECORDINGS_DIR="$OMCTEST_WORK/Speech Recordings"
 FAKE_SPEECH_FIXTURES="$OMCTEST_FIXTURES"
 FAKE_SPEECH_LOG="$OMCTEST_WORK/fake-speech.log"
 SPEECH_TEST_RECORD_DIR="$OMCTEST_WORK"
+# A small reference file instead of the published measurements, whose rows change with every battery.
+SPEECH_REFERENCE_MEASUREMENTS="$OMCTEST_FIXTURES/reference.tsv"
 # The language picker falls back to the locale's language; pin it so the suite does not depend
 # on the machine it runs on.
 LANG="en_US.UTF-8"
-export SPEECH_BIN SPEECH_POLL_SCRIPT SPEECH_MODELS_POLL_SCRIPT SPEECH_APP_SUPPORT FAKE_SPEECH_FIXTURES FAKE_SPEECH_LOG SPEECH_TEST_RECORD_DIR LANG
+export SPEECH_BIN SPEECH_POLL_SCRIPT SPEECH_MODELS_POLL_SCRIPT SPEECH_APP_SUPPORT FAKE_SPEECH_FIXTURES FAKE_SPEECH_LOG SPEECH_TEST_RECORD_DIR SPEECH_REFERENCE_MEASUREMENTS LANG
 
 if [ -z "$OMC_ACTIONUI_WINDOW_UUID" ]; then
     printf 'lib.test.speech.sh: no window uuid in the test shell\n' >&2
@@ -65,6 +67,12 @@ models_call() {
 
 lib_call() {
     ( . "$OMCTEST_APP/Contents/Resources/Scripts/lib.speech.sh" >/dev/null 2>&1
+      "$@" )
+}
+
+# The same for the Benchmark tab's library.
+bench_call() {
+    ( . "$OMCTEST_APP/Contents/Resources/Scripts/lib.speech.benchmark.sh" >/dev/null 2>&1
       "$@" )
 }
 
@@ -116,7 +124,7 @@ reset_state() {
     /bin/rm -rf "$SPEECH_APP_SUPPORT"
     /bin/rm -f "$FAKE_SPEECH_LOG" "$SPEECH_TEST_RECORD_DIR/poller.args"
     "$OMC_OMC_SUPPORT_PATH/pasteboard" SPEECH_OPEN_PATH set ""
-    unset FAKE_SPEECH_MODE FAKE_SPEECH_FAIL_FILE FAKE_SPEECH_CATALOG FAKE_SPEECH_DOWNLOAD FAKE_SPEECH_DELETE FAKE_SPEECH_ADD
+    unset FAKE_SPEECH_MODE FAKE_SPEECH_FAIL_FILE FAKE_SPEECH_CATALOG FAKE_SPEECH_DOWNLOAD FAKE_SPEECH_DELETE FAKE_SPEECH_ADD FAKE_SPEECH_EVAL
     omc_reset_controls
 }
 

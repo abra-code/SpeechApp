@@ -20,6 +20,10 @@
 #                          catalog copy), fail (speech's usage error, exit 2), hang (one progress
 #                          event, then wait to be signaled), exists (already listed: exit 0 with
 #                          nothing to say), or finish (already listed, its download finished)
+#   FAKE_SPEECH_EVAL       `eval` behavior: ok (default; three scored recordings, the summary, and
+#                          --report's summary.json from eval.summary.json with the model filled in),
+#                          fail (an error event, exit 1), crash (dies on SIGABRT with nothing
+#                          said), or hang (one scored recording, then wait to be signaled)
 #
 # In hang mode the process replaces itself with sleep under its own name (exec -a), so its argv
 # still starts with the SPEECH_BIN path. That is what the applet's argv check requires before it
@@ -39,6 +43,45 @@ verb="$1"
 shift
 
 case "$verb" in
+    --version)
+        printf 'speech 0.1.0\n'
+        exit 0
+        ;;
+    eval)
+        model=""
+        report=""
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                --model) model="$2"; shift ;;
+                --report) report="$2"; shift ;;
+            esac
+            shift
+        done
+        printf '{"engine":"apple","load_seconds":0.1,"model":"%s","t":0.1,"type":"engine.ready"}\n' "$model"
+        case "${FAKE_SPEECH_EVAL:-ok}" in
+            fail)
+                printf '%s\n' '{"code":"runtime","message":"no rows could be scored, so there is no measurement: cannot decode the recording","t":0.2,"type":"error"}'
+                printf 'speech eval: no rows could be scored\n' >&2
+                exit 1
+                ;;
+            crash)
+                /bin/kill -ABRT $$
+                ;;
+            hang)
+                printf '%s\n' '{"audio_seconds":9.1,"cer":0.2,"hypothesis":"ala ma","index":0,"path":"a.wav","reference":"ala ma kota","t":0.3,"type":"eval.row","wall_seconds":0.2,"wer":0.5}'
+                exec -a "$0" /bin/sleep 600
+                ;;
+        esac
+        printf '%s\n' '{"audio_seconds":9.1,"cer":0,"hypothesis":"ala ma kota","index":0,"path":"a.wav","reference":"ala ma kota","t":0.3,"type":"eval.row","wall_seconds":0.2,"wer":0}'
+        printf '%s\n' '{"audio_seconds":11.2,"cer":0.1,"hypothesis":"to jest tekst","index":1,"path":"b.wav","reference":"to jest test","t":0.5,"type":"eval.row","wall_seconds":0.3,"wer":0.3333}'
+        printf '%s\n' '{"audio_seconds":11.1,"cer":0,"hypothesis":"dzien dobry","index":2,"path":"c.wav","reference":"dzien dobry","t":0.7,"type":"eval.row","wall_seconds":0.2,"wer":0}'
+        printf '{"audio_seconds":31.4,"cer":0.0512,"language":"pl-PL","model":"%s","peak_memory_bytes":480000000,"peak_rss_bytes":44384256,"rows":3,"rtfx":42.44,"t":0.8,"type":"eval.summary","wall_seconds":0.74,"worst":[],"wer":0.08333}\n' "$model"
+        if [ -n "$report" ]; then
+            /bin/mkdir -p "$report"
+            /usr/bin/jq --arg model "$model" '.model = $model' "$fixtures/eval.summary.json" > "$report/summary.json"
+        fi
+        exit 0
+        ;;
     catalog)
         /bin/cat "${FAKE_SPEECH_CATALOG:-$fixtures/catalog.json}"
         exit 0

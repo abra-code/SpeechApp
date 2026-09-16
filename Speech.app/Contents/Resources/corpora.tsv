@@ -1,0 +1,12 @@
+# The standard corpora the Benchmark tab offers, in picker order. Columns:
+#   id <TAB> title <TAB> language tag <TAB> manifest, relative to Application Support/Speech/Corpora <TAB> recordings in the full set
+# The id is the corpus column of speech's published measurements (docs/benchmarks/measurements.tsv), and the manifest path is where
+# speech's tools/fetch-fleurs.sh and tools/fetch-librispeech.sh put a corpus when SPEECH_CORPUS_DIR is that Corpora directory.
+cmn_hans_cn	FLEURS Chinese (Mandarin)	zh-CN	fleurs/cmn_hans_cn/manifest.tsv	945
+en_us	FLEURS English (US)	en-US	fleurs/en_us/manifest.tsv	647
+fr_fr	FLEURS French	fr-FR	fleurs/fr_fr/manifest.tsv	676
+de_de	FLEURS German	de-DE	fleurs/de_de/manifest.tsv	862
+pl_pl	FLEURS Polish	pl-PL	fleurs/pl_pl/manifest.tsv	758
+es_419	FLEURS Spanish (Latin America)	es-419	fleurs/es_419/manifest.tsv	908
+librispeech-test-clean	LibriSpeech test-clean (English, clear speech)	en-US	LibriSpeech/test-clean/manifest.tsv	2620
+librispeech-test-other	LibriSpeech test-other (English, harder speech)	en-US	LibriSpeech/test-other/manifest.tsv	2939

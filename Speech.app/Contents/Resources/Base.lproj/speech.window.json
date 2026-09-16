@@ -332,13 +332,160 @@
           "type": "Tab",
           "properties": { "title": "Benchmark", "systemImage": "gauge.with.dots.needle.33percent" },
           "content": {
-            "type": "ContentUnavailableView",
+            "type": "VStack",
             "properties": {
-              "title": "Benchmarking",
-              "systemImage": "gauge.with.dots.needle.33percent",
-              "description": "Measuring models on this Mac, with standard test recordings and your own, arrives in a later update.",
+              "spacing": 10,
+              "padding": 14,
               "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
-            }
+            },
+            "children": [
+              {
+                "type": "HStack",
+                "properties": { "spacing": 8 },
+                "children": [
+                  { "type": "Text", "properties": { "text": "Corpus", "foregroundStyle": "secondary", "frame": { "width": 48, "alignment": "leading" } } },
+                  {
+                    "type": "Picker",
+                    "id": 425,
+                    "properties": {
+                      "pickerStyle": "menu",
+                      "labelsHidden": true,
+                      "options": ["Loading..."],
+                      "actionID": "speech.benchmark.corpus.changed",
+                      "frame": { "minWidth": 260, "idealWidth": 340 }
+                    }
+                  },
+                  {
+                    "type": "Picker",
+                    "id": 426,
+                    "properties": {
+                      "pickerStyle": "menu",
+                      "labelsHidden": true,
+                      "options": ["Quick sample"],
+                      "actionID": "speech.benchmark.sample.changed",
+                      "frame": { "minWidth": 200, "idealWidth": 240 }
+                    }
+                  },
+                  { "type": "Spacer" }
+                ]
+              },
+              {
+                "type": "HStack",
+                "properties": { "spacing": 8 },
+                "children": [
+                  { "type": "Text", "properties": { "text": "Model", "foregroundStyle": "secondary", "frame": { "width": 48, "alignment": "leading" } } },
+                  {
+                    "type": "Picker",
+                    "id": 427,
+                    "properties": {
+                      "pickerStyle": "menu",
+                      "labelsHidden": true,
+                      "options": ["Loading..."],
+                      "actionID": "speech.benchmark.model.changed",
+                      "frame": { "minWidth": 260, "idealWidth": 340 }
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "id": 443,
+                    "properties": {
+                      "title": "Add to Queue",
+                      "systemImage": "plus",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "actionID": "speech.benchmark.add"
+                    }
+                  },
+                  { "type": "Spacer" },
+                  {
+                    "type": "Button",
+                    "id": 441,
+                    "properties": {
+                      "title": "Stop",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "actionID": "speech.benchmark.stop"
+                    }
+                  },
+                  {
+                    "type": "Button",
+                    "id": 440,
+                    "properties": {
+                      "title": "Run",
+                      "systemImage": "play.fill",
+                      "buttonStyle": "borderedProminent",
+                      "disabled": true,
+                      "actionID": "speech.benchmark.run"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "VSplitView",
+                "properties": { "frame": { "maxWidth": "infinity", "maxHeight": "infinity" } },
+                "children": [
+                  {
+                    "type": "Table",
+                    "id": 460,
+                    "properties": {
+                      "columns": ["Model", "WER", "CER", "Speed", "Peak memory", "Recordings", "Measured", "Note"],
+                      "widths": [230, 70, 70, 70, 90, 90, 250, 220],
+                      "minWidths": [120, 50, 50, 50, 60, 60, 120, 60],
+                      "frame": { "minHeight": 140, "maxWidth": "infinity", "maxHeight": "infinity" }
+                    }
+                  },
+                  {
+                    "type": "VStack",
+                    "properties": {
+                      "spacing": 4,
+                      "alignment": "leading",
+                      "frame": { "minHeight": 110, "idealHeight": 160, "maxWidth": "infinity" }
+                    },
+                    "children": [
+                      { "type": "Text", "properties": { "text": "Queue", "font": "headline", "padding": { "top": 8 } } },
+                      {
+                        "type": "Table",
+                        "id": 470,
+                        "properties": {
+                          "columns": ["Model", "Corpus", "Status"],
+                          "widths": [250, 280, 320],
+                          "minWidths": [120, 120, 120],
+                          "actionID": "speech.benchmark.queue.selected",
+                          "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
+                        }
+                      },
+                      {
+                        "type": "HStack",
+                        "properties": { "spacing": 4 },
+                        "children": [
+                          {
+                            "type": "Button",
+                            "id": 471,
+                            "properties": {
+                              "systemImage": "minus",
+                              "buttonStyle": "borderless",
+                              "disabled": true,
+                              "actionID": "speech.benchmark.remove"
+                            }
+                          },
+                          { "type": "Spacer" }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "Text",
+                "id": 480,
+                "properties": {
+                  "text": "Starting...",
+                  "font": "caption",
+                  "foregroundStyle": "secondary",
+                  "frame": { "maxWidth": "infinity", "alignment": "leading" }
+                }
+              }
+            ]
           }
         }
       ]

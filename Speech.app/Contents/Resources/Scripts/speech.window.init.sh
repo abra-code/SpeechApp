@@ -7,7 +7,7 @@
 
 [ -n "$window_uuid" ] || exit 0
 spool="$(spool_dir_for "$window_uuid")"
-/bin/mkdir -p "$spool/live" "$spool/recordings"
+/bin/mkdir -p "$spool/live" "$spool/recordings" "$spool/benchmark"
 mkdir_status=$?
 if [ "$mkdir_status" -ne 0 ]; then
     use_pane live
@@ -19,10 +19,11 @@ fi
 write_state "$spool/app.pid" "${OMC_APP_PROCESS_ID:-}"
 
 for control in "$LIVE_BTN" "$LIVE_STOP_BTN" "$LIVE_EXPORT_MENU" "$LIVE_COPY_BTN" "$LIVE_MODEL_PICKER" "$LIVE_LANGUAGE_PICKER" \
-    "$REC_TRANSCRIBE_BTN" "$REC_STOP_BTN" "$REC_EXPORT_MENU" "$REC_COPY_BTN" "$REC_REMOVE_BTN" "$REC_MODEL_PICKER" "$REC_LANGUAGE_PICKER"; do
+    "$REC_TRANSCRIBE_BTN" "$REC_STOP_BTN" "$REC_EXPORT_MENU" "$REC_COPY_BTN" "$REC_REMOVE_BTN" "$REC_MODEL_PICKER" "$REC_LANGUAGE_PICKER" \
+    "$BENCH_CORPUS_PICKER" "$BENCH_SAMPLE_PICKER" "$BENCH_MODEL_PICKER" "$BENCH_ADD_BTN" "$BENCH_RUN_BTN" "$BENCH_STOP_BTN" "$BENCH_REMOVE_BTN"; do
     disable_ctrl "$control"
 done
-for pane in live recordings; do
+for pane in live recordings benchmark; do
     use_pane "$pane"
     set_status "Reading the model list..."
 done

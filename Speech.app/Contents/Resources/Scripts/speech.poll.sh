@@ -13,7 +13,7 @@
 # A SIGKILLed app runs no cleanup, so the poller watches the app's pid as well as the spool:
 # without that, it would poll a spool nobody will ever remove, forever.
 
-. "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.sh"
+. "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.benchmark.sh"
 
 window_uuid="$1"
 spool="$2"
@@ -27,7 +27,7 @@ load_models "$spool"
 load_status=$?
 if [ "$load_status" -ne 0 ]; then
     reason="$(/usr/bin/head -3 "$spool/catalog.err" 2>/dev/null)"
-    for pane in live recordings; do
+    for pane in live recordings benchmark; do
         use_pane "$pane"
         set_status "Could not read the model catalog: ${reason:-speech did not answer}"
     done
@@ -38,6 +38,7 @@ use_pane live
 populate_model_picker "$spool/live"
 use_pane recordings
 populate_model_picker "$spool/recordings"
+setup_benchmark "$spool"
 offer_models_window "$spool"
 
 while [ -d "$spool" ]; do
@@ -49,6 +50,7 @@ while [ -d "$spool" ]; do
     reload_models_if_changed "$spool"
     poll_live "$spool"
     poll_recordings "$spool"
+    poll_benchmark "$spool"
     /bin/sleep 0.5
 done
 

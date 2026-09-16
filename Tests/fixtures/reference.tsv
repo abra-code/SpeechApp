@@ -1,0 +1,10 @@
+# Produced by:
+#   tool: speech 0.1.0
+#   machine: Reference Mac
+#   macos: 26.6.2
+#
+model	corpus	macos	language	resolved_locales	rows	skipped	wer_pct	cer_pct	rtfx	audio_seconds	wall_seconds	load_seconds	peak_memory_bytes	peak_footprint_bytes	peak_neural_bytes	reference_words	reference_characters	substitutions	deletions	insertions	character_errors	date
+apple.dictation	pl_pl	26.6.2	pl-PL	pl_PL	758	0	13.16	5.10	35.1	9000.0	256.4	0.07	21709496	21709496	0	14000	80000	1433	269	190	4983	2026-09-08T11:40:13Z
+apple.dictation	pl_pl	25.1	pl-PL	pl_PL	758	0	14.02	5.60	30.2	9000.0	298.0	0.08	21709496	21709496	0	14000	80000	1500	280	200	5100	2026-08-01T09:00:00Z
+ggml.nemotron-3.5-asr-streaming-0.6b@q8_0	pl_pl	26.6.2	pl-PL	pl-PL	758	2	9.50	4.00	110.4	9000.0	81.5	1.20	1300000000	1250000000	50000000	14000	80000	900	200	230	3100	2026-09-09T11:40:13Z
+apple.dictation	en_us	26.6.2	en-US	en_US	647	0	13.08	5.94	35.1	6387.9	182.0	0.07	21709496	21709496	0	14465	83872	1433	269	190	4983	2026-09-08T11:40:13Z

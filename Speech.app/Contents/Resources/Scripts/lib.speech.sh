@@ -33,8 +33,8 @@ NL="
 #
 # Two environment namespaces share the SPEECH_ prefix and must not be treated as one set. The
 # ones read here (SPEECH_BIN, SPEECH_FINGERPRINT_BIN, SPEECH_POLL_SCRIPT,
-# SPEECH_MODELS_POLL_SCRIPT, SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT, SPEECH_RECORDINGS_DIR)
-# are this applet's test hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the
+# SPEECH_MODELS_POLL_SCRIPT, SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT, SPEECH_RECORDINGS_DIR,
+# SPEECH_REFERENCE_MEASUREMENTS) are this applet's test hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the
 # speech binary's own production configuration.
 SPEECH_BIN="${SPEECH_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech}"
 FINGERPRINT_BIN="${SPEECH_FINGERPRINT_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/fingerprint}"
@@ -53,6 +53,14 @@ ADD_WORKER_SCRIPT="$SCRIPTS_DIR/speech.add.worker.sh"
 ADDING_DIR="$APP_SUPPORT/Adding"
 # A new value here means a model was downloaded or deleted; every window reads the catalog again.
 MODELS_STAMP="$APP_SUPPORT/models.changed"
+# Benchmarking (lib.speech.benchmark.sh): the standard corpora this app knows and where they are
+# kept, the reference measurements published with speech, and this Mac's own measurements and queue,
+# which one worker drains.
+CORPORA_TSV="$RESOURCES_DIR/corpora.tsv"
+CORPORA_DIR="$APP_SUPPORT/Corpora"
+REFERENCE_MEASUREMENTS="${SPEECH_REFERENCE_MEASUREMENTS:-$RESOURCES_DIR/Reference/measurements.tsv}"
+BENCHMARKS_DIR="$APP_SUPPORT/Benchmarks"
+BENCHMARK_WORKER_SCRIPT="$SCRIPTS_DIR/speech.benchmark.worker.sh"
 
 # The speech binary's model store and user catalog, exported so every speech process this applet
 # starts lands in the applet's store without each call site passing --models-dir. The CLI's own
@@ -89,6 +97,22 @@ REC_REMOVE_BTN=162
 REC_LEVEL=170
 REC_TRANSCRIPT=210
 REC_STATUS=310
+
+# The Benchmark tab.
+BENCH_CORPUS_PICKER=425
+BENCH_SAMPLE_PICKER=426
+BENCH_MODEL_PICKER=427
+BENCH_RUN_BTN=440
+BENCH_STOP_BTN=441
+BENCH_ADD_BTN=443
+BENCH_RESULTS_TABLE=460
+BENCH_QUEUE_TABLE=470
+BENCH_REMOVE_BTN=471
+BENCH_STATUS=480
+
+# A quick sample is the first this many recordings of a corpus, so two quick samples, on this Mac or
+# another, score the same audio.
+QUICK_SAMPLE_ROWS=100
 
 # The Models window (speech.models.json), its information sheet (speech.model.info.json) and its
 # Add a Model sheet (speech.model.add.json).
@@ -136,11 +160,22 @@ TRANSCRIPT_XATTR="com.abracode.speech.transcript"
 # The Live and Recordings tabs each have a model picker, a language picker, a transcript and a
 # status line of their own, and keep their state in a directory of their own inside the window's
 # spool. use_pane points the generic functions below at one of them: they write to MODEL_PICKER,
-# STATUS_TEXT and the rest, and read the saved model and language under the pane's own keys.
+# STATUS_TEXT and the rest, and read the saved model and language under the pane's own keys. The
+# Benchmark tab is a pane too, for its Model picker and status line; it has no language picker, since
+# the corpus decides the language, and no transcript.
 
-use_pane() {   # $1 = live | recordings
+use_pane() {   # $1 = live | recordings | benchmark
     PANE="$1"
     case "$1" in
+        benchmark)
+            MODEL_PICKER=$BENCH_MODEL_PICKER
+            LANGUAGE_PICKER=""
+            STOP_BTN=$BENCH_STOP_BTN
+            EXPORT_MENU=""
+            COPY_BTN=""
+            TRANSCRIPT_EDITOR=""
+            STATUS_TEXT=$BENCH_STATUS
+            ;;
         live)
             MODEL_PICKER=$LIVE_MODEL_PICKER
             LANGUAGE_PICKER=$LIVE_LANGUAGE_PICKER
@@ -261,6 +296,22 @@ signal_speech_pid() {   # $1 = pid, $2 = signal name (TERM, KILL)
     /bin/kill -"$2" "$1" 2>/dev/null
 }
 
+# Wait for a speech process this shell started, and return its exit status. A signal the caller
+# traps interrupts wait before speech has exited, so wait again for speech's own status.
+wait_for_speech() {   # $1 = pid
+    wait "$1"
+    local _status=$?
+    local _alive
+    while [ "$_status" -gt 128 ]; do
+        pid_alive "$1"
+        _alive=$?
+        [ "$_alive" -eq 0 ] || break
+        wait "$1"
+        _status=$?
+    done
+    return "$_status"
+}
+
 # Settings: one small file per key under Settings/. A file the applet owns is isolated by the
 # test harness's $HOME redirection, which a `defaults` domain is not.
 setting_get() { read_state "$SETTINGS_DIR/$1"; }   # $1 = key
@@ -352,16 +403,48 @@ read_catalog() {   # $1 = spool
         return 1
     fi
     /bin/mv -f "$_spool/models.tsv.tmp" "$_spool/models.tsv"
+    # Every row's label, runnable or not, for the Benchmark tab's tables (id <TAB> label <TAB>
+    # engine), and this Mac's chip and macOS version, which decide what counts as measured here.
+    "$jq" -r '.rows[] | [.id, .label, (.engine // "")] | map(tostring | gsub("[\t\r\n]"; " ")) | join("\t")' \
+        "$_spool/catalog.json" > "$_spool/labels.tsv.tmp" 2>/dev/null
+    /bin/mv -f "$_spool/labels.tsv.tmp" "$_spool/labels.tsv"
+    write_state "$_spool/this_mac" "$("$jq" -r '[(.machine.chip // ""), (.machine.macos // "")] | map(tostring) | join("\t")' "$_spool/catalog.json" 2>/dev/null)"
 }
 
-# A pane's own models.tsv, from the spool's: Recordings all of it, Live the rows that can stream.
-pane_models() {   # $1 = spool, $2 = live | recordings
+# A pane's own models.tsv, from the spool's: Recordings all of it, Live the rows that can stream,
+# Benchmark the rows that transcribe files in the language of the tab's corpus - a row whose
+# languages include that language under any region, or a row that lists none of its own.
+pane_models() {   # $1 = spool, $2 = live | recordings | benchmark
     /bin/mkdir -p "$1/$2"
-    if [ "$2" = live ]; then
-        /usr/bin/awk -F'\t' '("," $4 ",") ~ /,live,/' "$1/models.tsv" > "$1/live/models.tsv"
-    else
-        /bin/cp -f "$1/models.tsv" "$1/recordings/models.tsv"
-    fi
+    case "$2" in
+        live)
+            /usr/bin/awk -F'\t' '("," $4 ",") ~ /,live,/' "$1/models.tsv" > "$1/live/models.tsv"
+            ;;
+        benchmark)
+            local _language="$(corpus_field "$(read_state "$1/benchmark/corpus.id")" 3)"
+            /usr/bin/awk -F'\t' -v want="$_language" '
+                BEGIN { want = tolower(want); sub(/[-_].*/, "", want) }
+                ("," $4 ",") !~ /,batch,/ { next }
+                $3 == "*" { print; next }
+                {
+                    n = split($3, tags, ",")
+                    for (i = 1; i <= n; i++) {
+                        tag = tolower(tags[i]); sub(/[-_].*/, "", tag)
+                        if (tag == want) { print; next }
+                    }
+                }
+            ' "$1/models.tsv" > "$1/benchmark/models.tsv"
+            ;;
+        *)
+            /bin/cp -f "$1/models.tsv" "$1/recordings/models.tsv"
+            ;;
+    esac
+}
+
+# One column of a standard corpus's line in Resources/corpora.tsv: 2 title, 3 language tag,
+# 4 manifest path under the Corpora directory, 5 recordings in the full set.
+corpus_field() {   # $1 = corpus id, $2 = column number
+    /usr/bin/awk -F'\t' -v id="$1" -v col="$2" '!/^#/ && $1 == id { print $col; exit }' "$CORPORA_TSV" 2>/dev/null
 }
 
 # --- models downloaded or deleted --------------------------------------------------------------
@@ -389,9 +472,10 @@ reload_models_if_changed() {   # $1 = spool
         write_state "$1/models.seen" "$_stamp"
         : > "$1/live/models.pending"
         : > "$1/recordings/models.pending"
+        [ -f "$1/benchmark/corpus.id" ] && : > "$1/benchmark/models.pending"
     fi
     local _pane
-    for _pane in live recordings; do
+    for _pane in live recordings benchmark; do
         [ -f "$1/$_pane/models.pending" ] || continue
         pane_is_busy "$1/$_pane"
         local _busy=$?
@@ -443,11 +527,13 @@ populate_model_picker() {   # $1 = pane dir
         quiet_begin "$_pane"
         if [ "$PANE" = live ]; then
             "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" "[\"No live models available\",\"$DOWNLOAD_MODELS_OPTION\"]"
+        elif [ "$PANE" = benchmark ]; then
+            "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" "[\"No models for this language\",\"$DOWNLOAD_MODELS_OPTION\"]"
         else
             "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" "[\"No models available\",\"$DOWNLOAD_MODELS_OPTION\"]"
         fi
         "$dialog" "$window_uuid" "$MODEL_PICKER" 1
-        "$dialog" "$window_uuid" "$LANGUAGE_PICKER" omc_set_property "options" '["-"]'
+        [ -n "$LANGUAGE_PICKER" ] && "$dialog" "$window_uuid" "$LANGUAGE_PICKER" omc_set_property "options" '["-"]'
         return 0
     fi
     _options="$_options,\"$DOWNLOAD_MODELS_OPTION\"]"
@@ -472,7 +558,8 @@ populate_model_picker() {   # $1 = pane dir
     quiet_begin "$_pane"
     "$dialog" "$window_uuid" "$MODEL_PICKER" omc_set_property "options" "$_options"
     "$dialog" "$window_uuid" "$MODEL_PICKER" "$_line"
-    populate_language_picker "$_pane"
+    [ -n "$LANGUAGE_PICKER" ] && populate_language_picker "$_pane"
+    return 0
 }
 
 # The display name of a language tag: the English name of its primary subtag from
@@ -601,7 +688,7 @@ handle_model_changed() {   # $1 = pane dir, $2 = picker value
     write_state "$1/model.id" "$_model"
     setting_set "$PANE.model" "$_model"
     /bin/rm -f "$1/status.note"
-    populate_language_picker "$1"
+    [ -n "$LANGUAGE_PICKER" ] && populate_language_picker "$1"
     /bin/rm -f "$1/actions.sig"
 }
 
