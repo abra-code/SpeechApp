@@ -61,14 +61,9 @@
                   },
                   { "type": "Spacer" },
                   {
-                    "type": "Button",
-                    "id": 41,
-                    "properties": {
-                      "title": "Stop",
-                      "buttonStyle": "bordered",
-                      "disabled": true,
-                      "actionID": "speech.stop"
-                    }
+                    "type": "Text",
+                    "id": 43,
+                    "properties": { "text": "0:00", "hidden": true, "font": { "size": 15, "weight": "semibold", "design": "monospaced" }, "foregroundStyle": "red", "frame": { "width": 56, "alignment": "trailing" } }
                   },
                   {
                     "type": "Button",
@@ -77,6 +72,8 @@
                       "title": "Live",
                       "systemImage": "waveform",
                       "buttonStyle": "borderedProminent",
+                      "tint": "accentColor",
+                      "help": "Transcribe the microphone as you speak",
                       "disabled": true,
                       "actionID": "speech.live"
                     }
@@ -224,36 +221,40 @@
                   },
                   { "type": "Spacer" },
                   {
-                    "type": "Gauge",
+                    "type": "Text",
                     "id": 170,
-                    "properties": {
-                      "value": 0,
-                      "style": "accessoryLinear",
-                      "hidden": true,
-                      "frame": { "width": 90 }
-                    }
+                    "properties": { "text": "0:00", "hidden": true, "font": { "size": 15, "weight": "semibold", "design": "monospaced" }, "foregroundStyle": "red", "frame": { "width": 56, "alignment": "trailing" } }
                   },
                   {
-                    "type": "Button",
-                    "id": 142,
-                    "properties": {
-                      "title": "Record",
-                      "systemImage": "record.circle",
-                      "buttonStyle": "bordered",
-                      "disabled": true,
-                      "keyboardShortcut": { "key": "r", "modifiers": ["command", "shift"] },
-                      "actionID": "speech.record"
-                    }
-                  },
-                  {
-                    "type": "Button",
-                    "id": 141,
-                    "properties": {
-                      "title": "Stop",
-                      "buttonStyle": "bordered",
-                      "disabled": true,
-                      "actionID": "speech.recordings.stop"
-                    }
+                    "type": "ZStack",
+                    "properties": { "alignment": "trailing" },
+                    "children": [
+                      {
+                        "type": "Button",
+                        "id": 142,
+                        "properties": {
+                          "title": "Record",
+                          "systemImage": "record.circle",
+                          "buttonStyle": "bordered",
+                          "tint": "red",
+                          "help": "Record a new recording from the microphone",
+                          "disabled": true,
+                          "keyboardShortcut": { "key": "r", "modifiers": ["command", "shift"] },
+                          "actionID": "speech.record"
+                        }
+                      },
+                      {
+                        "type": "Button",
+                        "id": 141,
+                        "properties": {
+                          "title": "Stop",
+                          "buttonStyle": "bordered",
+                          "hidden": true,
+                          "disabled": true,
+                          "actionID": "speech.recordings.stop"
+                        }
+                      }
+                    ]
                   },
                   {
                     "type": "Button",
@@ -284,8 +285,8 @@
                         "id": 160,
                         "properties": {
                           "columns": ["Recording", "Status"],
-                          "widths": [180, 220],
-                          "minWidths": [100, 100],
+                          "widths": [300, 100],
+                          "minWidths": [160, 80],
                           "actionID": "speech.recordings.selected",
                           "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
                         }

@@ -93,8 +93,8 @@ TAB_VIEW=5
 # The Live tab.
 LIVE_MODEL_PICKER=25
 LIVE_LANGUAGE_PICKER=26
-LIVE_STOP_BTN=41
 LIVE_BTN=42
+LIVE_CLOCK=43
 LIVE_EXPORT_MENU=50
 LIVE_COPY_BTN=55
 LIVE_TRANSCRIPT=200
@@ -120,7 +120,7 @@ REC_REMOVE_BTN=162
 REC_TRASH_BTN=163
 REC_PLAY_BTN=164
 REC_REVEAL_BTN=165
-REC_LEVEL=170
+REC_CLOCK=170
 REC_TRANSCRIPT=210
 REC_STATUS=310
 
@@ -207,7 +207,7 @@ use_pane() {   # $1 = live | recordings | benchmark
         live)
             MODEL_PICKER=$LIVE_MODEL_PICKER
             LANGUAGE_PICKER=$LIVE_LANGUAGE_PICKER
-            STOP_BTN=$LIVE_STOP_BTN
+            STOP_BTN=$LIVE_BTN
             EXPORT_MENU=$LIVE_EXPORT_MENU
             COPY_BTN=$LIVE_COPY_BTN
             TRANSCRIPT_EDITOR=$LIVE_TRANSCRIPT
@@ -1335,7 +1335,9 @@ path_from_drop_item() {   # $1 = item
     esac
 }
 
-# What the Status column says about a recording.
+# What the Status column says about a recording: a word or two, so the column stays narrow and the
+# Recording column keeps the room for the name. What lies behind "Saved", "Not saved" and "Failed"
+# is recording_detail's, shown in the status line when the recording is selected.
 recording_status() {   # $1 = pane dir, $2 = path
     if [ -f "$1/queue" ]; then
         /usr/bin/grep -Fxq -- "$2" "$1/queue"
@@ -1347,22 +1349,57 @@ recording_status() {   # $1 = pane dir, $2 = path
     fi
     local _item="$1/items/$(item_key "$2")"
     [ -d "$_item" ] || return 0
-    local _state="$(read_state "$_item/state")"
-    case "$_state" in
-        running)  printf 'Transcribing...' ;;
-        stopping) printf 'Stopping...' ;;
+    case "$(read_state "$_item/state")" in
+        running)  printf 'Transcribing' ;;
+        stopping) printf 'Stopping' ;;
         stopped)  printf 'Stopped' ;;
-        failed)   printf 'Failed: %s' "$(/usr/bin/head -1 "$_item/error.txt" 2>/dev/null)" ;;
+        failed)   printf 'Failed' ;;
         done)
             if [ -s "$_item/saved.name" ]; then
-                printf 'Saved as %s' "$(read_state "$_item/saved.name")"
+                printf 'Saved'
             elif [ -s "$_item/not_saved.txt" ]; then
-                printf 'Not saved: %s' "$(read_state "$_item/not_saved.txt")"
+                printf 'Not saved'
             else
                 printf 'Transcribed'
             fi
             ;;
     esac
+}
+
+# The sentence behind a recording's status, for the status line; empty when the status says it all.
+recording_detail() {   # $1 = pane dir, $2 = path
+    local _item="$1/items/$(item_key "$2")"
+    [ -d "$_item" ] || return 0
+    local _name="$(/usr/bin/basename "$2")"
+    case "$(read_state "$_item/state")" in
+        failed)
+            printf '%s could not be transcribed: %s' "$_name" "$(/usr/bin/head -1 "$_item/error.txt" 2>/dev/null)"
+            ;;
+        done)
+            if [ -s "$_item/saved.name" ]; then
+                printf 'The transcript of %s is saved beside it as %s.' "$_name" "$(read_state "$_item/saved.name")"
+            elif [ -s "$_item/not_saved.txt" ]; then
+                printf 'The transcript of %s was not saved: %s' "$_name" "$(read_state "$_item/not_saved.txt")"
+            fi
+            ;;
+    esac
+}
+
+# Put the selected recording's detail in the status line, as a note that stays until something
+# changes. Selecting a recording with nothing more to say, or nothing, takes away a detail about the
+# one selected before, but leaves any other note (how a batch or a recording ended) where it is.
+#   pane's detail.note   the detail last noted
+show_recording_detail() {   # $1 = pane dir, $2 = path; empty when nothing is selected
+    local _detail=""
+    [ -n "$2" ] && _detail="$(recording_detail "$1" "$2")"
+    if [ -n "$_detail" ]; then
+        note_status "$1" "$_detail"
+        write_state "$1/detail.note" "$_detail"
+        return 0
+    fi
+    [ -f "$1/detail.note" ] || return 0
+    [ "$(read_state "$1/status.note")" = "$(read_state "$1/detail.note")" ] && /bin/rm -f "$1/status.note"
+    /bin/rm -f "$1/detail.note"
 }
 
 # Push the list into the table when a row changed, then put the selection back: a table whose
@@ -1730,6 +1767,66 @@ capture_is_active() {   # $1 = pane dir
     return 1
 }
 
+# Record in the Recordings tab and Live in the Live tab each turn into the tab's only Stop button
+# while their job runs. Returns 0 when that button may stop the job in the directory given (a
+# recording's capture-<epoch>-<pid> or a session's run-<epoch>-<pid>): once the microphone is
+# open, which the job marks with the file named, or STOP_GRACE seconds after the button was
+# pressed, whichever comes first. Not at once, so a double click cannot start a job and stop it.
+# Not only once the microphone is open either: the microphone may never open, for example while
+# macOS asks for permission or Apple's language files download. The directory name gives the
+# press time, and whole seconds make the wait at least one second. Tests set SPEECH_STOP_GRACE to
+# take the clock out of a check.
+STOP_GRACE="${SPEECH_STOP_GRACE:-2}"
+
+button_may_stop() {   # $1 = job dir, $2 = the file that marks the microphone open
+    [ -n "$1" ] || return 1
+    [ "$(read_state "$1/state")" = running ] || return 1
+    [ -f "$1/$2" ] && return 0
+    local _epoch="${1##*/}"
+    _epoch="${_epoch#*-}"
+    _epoch="${_epoch%%-*}"
+    case "$_epoch" in ''|*[!0-9]*) return 1 ;; esac
+    local _now="$(/bin/date +%s)"
+    [ $((_now - _epoch)) -ge "$STOP_GRACE" ]
+}
+
+capture_can_stop() { button_may_stop "$1" started; }   # $1 = capture dir
+run_can_stop() { button_may_stop "$1" listening.since; }   # $1 = live run dir
+
+# Ask the live session to finish, from Live reading Stop. The run is marked as stopping first, so
+# the poller, seeing the process gone without a result, reports a stop rather than a failure. The
+# session is asked, not signaled: the request is for the stdin holder (speech.live.stdin.sh),
+# which sends "q" and lets speech finalize its last utterance and report `done`. A signal would
+# kill the session instead (speech's docs/live.md). What was transcribed so far stays in the
+# window. Returns non-zero, having done nothing, when no session is running.
+request_live_stop() {   # $1 = pane dir
+    local _run="$(current_run_dir "$1")"
+    [ -n "$_run" ] || return 1
+    [ "$(read_state "$_run/state")" = running ] || return 1
+    write_state "$_run/state" stopping
+    : > "$_run/stop.request"
+    set_status "Stopping..."
+    /bin/rm -f "$1/actions.sig"
+    refresh_live_card "$1"
+    refresh_live_actions "$1"
+    return 0
+}
+
+# Ask the recording being made to finish: Stop leaves a request for the stdin holder
+# (speech.live.stdin.sh), which sends "q", and `speech record` finishes the file and reports `done`.
+# Returns non-zero, having done nothing, when no recording is running.
+request_capture_stop() {   # $1 = pane dir
+    local _dir="$(capture_dir "$1")"
+    [ -n "$_dir" ] || return 1
+    [ "$(read_state "$_dir/state")" = running ] || return 1
+    write_state "$_dir/state" stopping
+    : > "$_dir/stop.request"
+    set_status "Finishing the recording..."
+    /bin/rm -f "$1/actions.sig"
+    refresh_recordings_actions "$1"
+    return 0
+}
+
 # A path for a new recording that does not exist yet: "Recording <stamp>.m4a", then "... 2.m4a"
 # and on. `speech record` refuses to replace a file, so a name already taken would only fail later.
 recording_path_for() {   # $1 = directory, $2 = time stamp
@@ -1743,21 +1840,20 @@ recording_path_for() {   # $1 = directory, $2 = time stamp
     printf '%s' "$_path"
 }
 
-# An input level in dBFS as a gauge value from 0 to 1: -60 dB and below is empty, 0 dB is full.
-# Anything that is not a number reads as silence.
-level_from_db() {   # $1 = dB
-    /usr/bin/awk -v db="$1" 'BEGIN {
-        if (db !~ /^-?[0-9.]+$/) { print "0.00"; exit }
-        v = (db + 60) / 60
-        if (v < 0) v = 0
-        if (v > 1) v = 1
-        printf "%.2f", v
-    }'
-}
+# What a level meter would really tell someone recording is whether the microphone hears them. So
+# the tab shows no meter, and instead warns once the input has stayed at or below QUIET_DB for
+# QUIET_SECONDS of the recording: a muted microphone, or the wrong one. Quiet is measured in the
+# recording's own seconds, not the clock's, so a poller that falls behind cannot invent silence.
+#   capture's started       present once recording.started arrived
+#   capture's device        the microphone recording.started named
+#   capture's quiet.since   the recording second the input went quiet; absent while it hears sound
+#   capture's clock         the elapsed time last shown, so an unchanged tick writes nothing
+QUIET_DB=-70
+QUIET_SECONDS=5
 
-# Consume the recording's new events: the elapsed time and level go to the status line and the
-# gauge, a warning is kept, an error or `done` settles the state. speech.record-events.jq turns
-# each event into one record.
+# Consume the recording's new events: the elapsed time goes to the clock, the microphone and any
+# silence to the status line, a warning is kept, an error or `done` settles the state.
+# speech.record-events.jq turns each event into one record.
 process_capture_events() {   # $1 = pane dir
     local _dir="$(capture_dir "$1")"
     [ -n "$_dir" ] || return 1
@@ -1766,17 +1862,27 @@ process_capture_events() {   # $1 = pane dir
     [ "$_consumed_status" -eq 0 ] || return 1
 
     local _seconds=""
-    local _level=""
-    local _type _event_seconds _rms _message _audio
-    while IFS="$US" read -r _type _event_seconds _rms _message _audio; do
+    local _type _event_seconds _rms _message _audio _device _db
+    while IFS="$US" read -r _type _event_seconds _rms _message _audio _device; do
         case "$_type" in
             recording.started)
                 _seconds=0
-                _level="0.00"
+                : > "$_dir/started"
+                write_state "$_dir/device" "$_device"
                 ;;
             recording.level)
-                _seconds="$_event_seconds"
-                _level="$(level_from_db "$_rms")"
+                _seconds="${_event_seconds%%.*}"
+                case "$_seconds" in ''|*[!0-9]*) _seconds=0 ;; esac
+                # Whole decibels keep this in the shell, several times a tick. Cutting off the
+                # fraction moves a level toward 0 dB by under one, so "at or below QUIET_DB" is
+                # exact: -70.5 becomes -70, still quiet, and -69.9 becomes -69, sound.
+                _db="${_rms%%.*}"
+                case "${_db#-}" in ''|*[!0-9]*) _db=-100 ;; esac
+                if [ "$_db" -gt "$QUIET_DB" ]; then
+                    [ -f "$_dir/quiet.since" ] && /bin/rm -f "$_dir/quiet.since"
+                elif [ ! -f "$_dir/quiet.since" ]; then
+                    write_state "$_dir/quiet.since" "$_seconds"
+                fi
                 ;;
             warning)
                 printf '%s\n' "$_message" >> "$_dir/warnings.txt"
@@ -1794,12 +1900,21 @@ process_capture_events() {   # $1 = pane dir
     /bin/rm -f "$_dir/events.records"
 
     [ "$(read_state "$_dir/state")" = running ] || return 0
-    if [ -n "$_seconds" ]; then
-        set_status "Recording $(/usr/bin/basename "$(read_state "$_dir/output.path")")... $(format_clock "$_seconds")"
+    [ -n "$_seconds" ] || return 0
+    local _clock="$(format_clock "$_seconds")"
+    if [ "$_clock" != "$(read_state "$_dir/clock")" ]; then
+        write_state "$_dir/clock" "$_clock"
+        "$dialog" "$window_uuid" "$REC_CLOCK" "$_clock"
     fi
-    if [ -n "$_level" ] && [ "$_level" != "$(read_state "$_dir/level")" ]; then
-        write_state "$_dir/level" "$_level"
-        "$dialog" "$window_uuid" "$REC_LEVEL" "$_level"
+    local _microphone="$(read_state "$_dir/device")"
+    local _quiet_since="$(read_state "$_dir/quiet.since")"
+    case "$_quiet_since" in ''|*[!0-9]*) _quiet_since="" ;; esac
+    if [ -n "$_quiet_since" ] && [ $((_seconds - _quiet_since)) -ge "$QUIET_SECONDS" ]; then
+        set_status "No sound from ${_microphone:-the microphone} for $(format_clock $((_seconds - _quiet_since))). If you are speaking, check that it is the microphone you want and that it is not muted."
+    elif [ -n "$_microphone" ]; then
+        set_status "Recording from $_microphone into $(/usr/bin/basename "$(read_state "$_dir/output.path")")."
+    else
+        set_status "Recording into $(/usr/bin/basename "$(read_state "$_dir/output.path")")."
     fi
     return 0
 }
@@ -1977,9 +2092,41 @@ refresh_live_card() {   # $1 = pane dir
     esac
 }
 
+# The clock beside Live: the time since the microphone opened, while the session runs and while it
+# finishes. Hidden before the microphone opens and once the session has ended.
+#   pane's clock.shown   the time last shown, empty while hidden, so an unchanged tick writes nothing
+refresh_live_clock() {   # $1 = pane dir
+    local _run="$(current_run_dir "$1")"
+    local _state=""
+    [ -n "$_run" ] && _state="$(read_state "$_run/state")"
+    local _clock=""
+    local _since=""
+    case "$_state" in
+        running|stopping)
+            _since="$(read_state "$_run/listening.since")"
+            case "$_since" in
+                ''|*[!0-9]*) ;;
+                *) _clock="$(format_clock $(($(/bin/date +%s) - _since)))" ;;
+            esac
+            ;;
+    esac
+    local _shown="$(read_state "$1/clock.shown")"
+    # The first refresh writes even an empty clock, so the window and the file agree from the start.
+    [ -f "$1/clock.shown" ] && [ "$_clock" = "$_shown" ] && return 0
+    write_state "$1/clock.shown" "$_clock"
+    if [ -z "$_clock" ]; then
+        "$dialog" "$window_uuid" "$LIVE_CLOCK" omc_hide
+        return 0
+    fi
+    "$dialog" "$window_uuid" "$LIVE_CLOCK" "$_clock"
+    [ -n "$_shown" ] || "$dialog" "$window_uuid" "$LIVE_CLOCK" omc_show
+}
+
 refresh_live_actions() {   # $1 = pane dir
     use_pane live
     local _pane="$1"
+    # The clock moves every tick, so it is refreshed ahead of the signature that holds the rest.
+    refresh_live_clock "$_pane"
     local _model="$(read_state "$_pane/model.id")"
     local _models_ready=0
     [ -f "$_pane/models.tsv" ] && _models_ready=1
@@ -1999,8 +2146,12 @@ refresh_live_actions() {   # $1 = pane dir
     [ "$_capture_status" -eq 0 ] && _other_recording=1
     local _can_live=0
     [ "$_active" = 0 ] && [ "$_other_busy" = 0 ] && [ -n "$_model" ] && _can_live=1
-    local _can_stop=0
-    [ "$_state" = running ] && _can_stop=1
+    # While a session runs, the same button stops it, from when run_can_stop says.
+    run_can_stop "$_run"
+    local _stoppable_status=$?
+    local _run_stoppable=0
+    [ "$_stoppable_status" -eq 0 ] && _run_stoppable=1
+    [ "$_run_stoppable" = 1 ] && _can_live=1
     local _can_export=0
     [ "$_active" = 0 ] && [ -n "$_run" ] && [ -s "$_run/result.json" ] && _can_export=1
     local _can_copy=0
@@ -2011,16 +2162,26 @@ refresh_live_actions() {   # $1 = pane dir
     local _can_pick_model=0
     [ "$_active" = 0 ] && [ "$_models_ready" = 1 ] && _can_pick_model=1
 
-    local _signature="$_can_live$_can_stop$_can_export$_can_copy$_can_pick|$_models_ready|$_state|$_other_busy$_other_recording|$_model"
+    local _signature="$_can_live$_run_stoppable$_can_export$_can_copy$_can_pick|$_models_ready|$_state|$_other_busy$_other_recording|$_model"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
     set_enabled "$LIVE_BTN" "$_can_live"
-    set_enabled "$LIVE_STOP_BTN" "$_can_stop"
     set_enabled "$LIVE_EXPORT_MENU" "$_can_export"
     set_enabled "$LIVE_COPY_BTN" "$_can_copy"
     set_enabled "$LIVE_MODEL_PICKER" "$_can_pick_model"
     set_enabled "$LIVE_LANGUAGE_PICKER" "$_can_pick"
+    if [ "$_active" = 1 ]; then
+        "$dialog" "$window_uuid" "$LIVE_BTN" omc_set_property "title" "Stop"
+        "$dialog" "$window_uuid" "$LIVE_BTN" omc_set_property "systemImage" "stop.circle.fill"
+        "$dialog" "$window_uuid" "$LIVE_BTN" omc_set_property "tint" "red"
+        "$dialog" "$window_uuid" "$LIVE_BTN" omc_set_property "help" "Stop listening. The transcript so far is kept."
+    else
+        "$dialog" "$window_uuid" "$LIVE_BTN" omc_set_property "title" "Live"
+        "$dialog" "$window_uuid" "$LIVE_BTN" omc_set_property "systemImage" "waveform"
+        "$dialog" "$window_uuid" "$LIVE_BTN" omc_set_property "tint" "accentColor"
+        "$dialog" "$window_uuid" "$LIVE_BTN" omc_set_property "help" "Transcribe the microphone as you speak"
+    fi
 
     # With no session to report on, the status line says what the tab is waiting for.
     [ -z "$_run" ] || return 0
@@ -2067,9 +2228,17 @@ refresh_recordings_actions() {   # $1 = pane dir
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_other_busy" = 0 ] && [ "$_count" -gt 0 ] && [ -n "$_model" ] && _can_transcribe=1
     local _can_record=0
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_other_busy" = 0 ] && _can_record=1
+    # While recording, the same button stops it: where the pointer already is, and on the same
+    # keyboard shortcut (capture_can_stop says from when).
+    capture_can_stop "$_capture"
+    local _stoppable_status=$?
+    local _capture_stoppable=0
+    [ "$_stoppable_status" -eq 0 ] && _capture_stoppable=1
+    [ "$_capture_stoppable" = 1 ] && _can_record=1
+    # Stop is for a batch. It shares Record's place and shows only while a batch runs, when Record
+    # has nothing to do, so the row never shows two Stop buttons.
     local _can_stop=0
     [ "$_batch" = running ] && _can_stop=1
-    [ "$_capture_state" = running ] && _can_stop=1
     local _item_finished=0
     case "$_item_state" in done|stopped|failed) _item_finished=1 ;; esac
     local _can_export=0
@@ -2099,7 +2268,7 @@ refresh_recordings_actions() {   # $1 = pane dir
     local _can_pick_model=0
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_models_ready" = 1 ] && _can_pick_model=1
 
-    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_can_trash$_can_play$_can_reveal$_playing_selected|$_models_ready|$_batch|$_capture_state|$_other_busy|$_count|$_selected|$_item_state|$_model"
+    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_can_trash$_can_play$_can_reveal$_playing_selected|$_models_ready|$_batch|$_capture_state$_capture_stoppable|$_other_busy|$_count|$_selected|$_item_state|$_model"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
@@ -2122,10 +2291,25 @@ refresh_recordings_actions() {   # $1 = pane dir
     fi
     set_enabled "$REC_MODEL_PICKER" "$_can_pick_model"
     set_enabled "$REC_LANGUAGE_PICKER" "$_can_pick"
-    if [ "$_recording" = 1 ]; then
-        "$dialog" "$window_uuid" "$REC_LEVEL" omc_show
+    if [ "$_active" = 1 ]; then
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_hide
+        "$dialog" "$window_uuid" "$REC_STOP_BTN" omc_show
     else
-        "$dialog" "$window_uuid" "$REC_LEVEL" omc_hide
+        "$dialog" "$window_uuid" "$REC_STOP_BTN" omc_hide
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_show
+    fi
+    if [ "$_recording" = 1 ]; then
+        "$dialog" "$window_uuid" "$REC_CLOCK" omc_show
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_set_property "title" "Stop"
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_set_property "systemImage" "stop.circle.fill"
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_set_property "buttonStyle" "borderedProminent"
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_set_property "help" "Stop recording. What was recorded is kept."
+    else
+        "$dialog" "$window_uuid" "$REC_CLOCK" omc_hide
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_set_property "title" "Record"
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_set_property "systemImage" "record.circle"
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_set_property "buttonStyle" "bordered"
+        "$dialog" "$window_uuid" "$REC_RECORD_BTN" omc_set_property "help" "Record a new recording from the microphone"
     fi
 
     # With nothing going on and no note about how the last batch or recording ended, the status

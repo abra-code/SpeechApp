@@ -71,11 +71,6 @@
     },
     {
       "NAME": "Speech",
-      "COMMAND_ID": "speech.stop",
-      "EXECUTION_MODE": "exe_script_file"
-    },
-    {
-      "NAME": "Speech",
       "COMMAND_ID": "speech.export.txt",
       "EXECUTION_MODE": "exe_script_file",
       "SAVE_AS_DIALOG": {

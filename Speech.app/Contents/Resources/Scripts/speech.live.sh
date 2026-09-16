@@ -1,12 +1,22 @@
 # speech.live - start transcribing the microphone live with the Live tab's model and language.
 # The handler only starts `speech stream` and its stdin holder; the poller reads the session's
-# events into the window, and Stop ends it.
+# events into the window. While the session runs, the same button reads Stop, and pressed ends it
+# (request_live_stop in lib.speech.sh).
 
 . "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.sh"
 
 pane="$(pane_dir_for "$window_uuid" live)"
 [ -n "$window_uuid" ] && [ -d "$pane" ] || exit 0
 use_pane live
+
+# While a session runs, Live is its Stop button, from when run_can_stop says. Before that a press
+# starts nothing, so a double click cannot start a session and stop it at once.
+run_can_stop "$(current_run_dir "$pane")"
+stoppable=$?
+if [ "$stoppable" -eq 0 ]; then
+    request_live_stop "$pane"
+    exit 0
+fi
 
 # A button press and a disabled button arriving late are two ways in. The lock makes a second
 # press a no-op rather than a second session.

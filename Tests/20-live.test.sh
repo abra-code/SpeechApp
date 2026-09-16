@@ -1,6 +1,6 @@
 #!/bin/sh
-# 20-live.test.sh - the Live tab: Live starts `speech stream` with a stdin holder, Stop ends the
-# session with "q" and keeps its transcript, and a closed window or a dead app ends it through end
+# 20-live.test.sh - the Live tab: Live starts `speech stream` with a stdin holder, Live reading Stop
+# ends the session with "q" and keeps its transcript, and a closed window or a dead app ends it through end
 # of input. The fake speech (helpers/fake-speech.sh) plays the session; the real stdin holder runs.
 . "${OMCTEST_LIB:?set OMCTEST_LIB, or run via: appletbuilder test}"
 . "$OMCTEST_TESTS/lib.test.speech.sh"
@@ -35,6 +35,10 @@ wait_for_no_holders() {   # $1 = run dir
 }
 
 stop_log="$FAKE_SPEECH_LOG.stop"
+# Live turns into Stop a moment after it was pressed even if the microphone has not opened. A long
+# grace keeps that clock out of every check but the ones about it.
+SPEECH_STOP_GRACE=600
+export SPEECH_STOP_GRACE
 
 # ------------------------------------------------------------------------------------------------
 section "the Live picker offers only models that can stream, each marked with its engine"
@@ -44,7 +48,7 @@ check "only the live rows, Apple's unmarked and ggml's with its squared G" \
     "$(ui_prop "$LIVE_MODEL_PICKER" options)"
 check "apple.transcriber is selected" "apple.transcriber" "$(/bin/cat "$(live_pane)/model.id")"
 check "Live is enabled" "1" "$(ui_enabled "$LIVE_BTN")"
-check "Stop is not" "0" "$(ui_enabled "$LIVE_STOP_BTN")"
+check "it reads Live, and the clock is hidden" "Live|waveform|0" "$(ui_prop "$LIVE_BTN" title)|$(ui_prop "$LIVE_BTN" systemImage)|$(ui_visible "$LIVE_CLOCK")"
 check "the status says what Live does" \
     "Press Live to transcribe the microphone with Apple long-form (built in)." "$(ui_value "$LIVE_STATUS")"
 
@@ -75,6 +79,12 @@ check "the run is live" "live" "$(/bin/cat "$run/kind")"
 check "its stdin is a FIFO" "yes" "$([ -p "$run/stdin.fifo" ] && echo yes || echo no)"
 check "speech is running" "alive" "$(/bin/kill -0 "$(/bin/cat "$run/speech.pid")" 2>/dev/null && echo alive || echo dead)"
 check "one stdin holder is running for the run" "1" "$(holders_for "$run")"
+check "Live already reads Stop, in red" "Stop|stop.circle.fill|red" \
+    "$(ui_prop "$LIVE_BTN" title)|$(ui_prop "$LIVE_BTN" systemImage)|$(ui_prop "$LIVE_BTN" tint)"
+check "but stays disabled until the microphone is open, and the clock waits for it too" "0|0" "$(ui_enabled "$LIVE_BTN")|$(ui_visible "$LIVE_CLOCK")"
+omc_run speech.live
+check "a second Live before the microphone is open starts nothing and stops nothing" "1|running|$run" \
+    "$(/usr/bin/wc -l < "$FAKE_SPEECH_LOG" | /usr/bin/tr -d ' ')|$(/bin/cat "$run/state")|$(run_dir)"
 omc_wait_for "/usr/bin/grep -q '\"id\":1' \"$run/events.jsonl\""
 poll_tick
 check "the finished utterance and the one still spoken are shown, the draft marked" \
@@ -82,8 +92,12 @@ check "the finished utterance and the one still spoken are shown, the draft mark
 and more ..." "$(ui_value "$LIVE_TRANSCRIPT")"
 check "the status says to speak" "Listening. Speak now." "$(ui_value "$LIVE_STATUS")"
 check "the card is gone: the words are the proof the microphone is open" "0" "$(ui_visible "$LIVE_CARD")"
-check "Stop is enabled" "1" "$(ui_enabled "$LIVE_STOP_BTN")"
-check "Live is disabled while listening" "0" "$(ui_enabled "$LIVE_BTN")"
+check "the microphone is open: Live, reading Stop, is enabled" "Stop|1" "$(ui_prop "$LIVE_BTN" title)|$(ui_enabled "$LIVE_BTN")"
+case "$(ui_value "$LIVE_CLOCK")" in 0:0[0-9]) clock_start=seconds ;; *) clock_start="$(ui_value "$LIVE_CLOCK")" ;; esac
+check "the clock runs from when the microphone opened" "1|seconds" "$(ui_visible "$LIVE_CLOCK")|$clock_start"
+printf '%s' "$(($(/bin/date +%s) - 65))" > "$run/listening.since"
+poll_tick
+check "a minute on, it says so" "1:05" "$(ui_value "$LIVE_CLOCK")"
 check "the model picker is disabled while listening" "0" "$(ui_enabled "$LIVE_MODEL_PICKER")"
 check "Export waits for the end" "0" "$(ui_enabled "$LIVE_EXPORT_MENU")"
 
@@ -96,16 +110,12 @@ check_absent "no batch was queued" "$(rec_pane)/batch"
 check "the Recordings status says why" "A live session is running. Stop it to transcribe recordings." "$(ui_value "$REC_STATUS")"
 : > "$(rec_pane)/list.tsv"
 
-section "a second Live while listening starts nothing"
-/bin/rm -f "$FAKE_SPEECH_LOG"
-omc_run speech.live
-check_absent "speech was not started again" "$FAKE_SPEECH_LOG"
-check "the same run is current" "$run" "$(run_dir)"
-
 # ------------------------------------------------------------------------------------------------
-section "Stop sends q, the session finishes its last utterance, and the transcript is kept"
+section "Live, reading Stop, sends q, the session finishes its last utterance, and the transcript is kept"
+/bin/rm -f "$FAKE_SPEECH_LOG"
 pid="$(/bin/cat "$run/speech.pid")"
-omc_run speech.stop
+omc_run speech.live
+check_absent "no second session was started" "$FAKE_SPEECH_LOG"
 check "the run is stopping" "stopping" "$(/bin/cat "$run/state")"
 check "the holder was asked" "yes" "$([ -f "$run/stop.request" ] && echo yes || echo no)"
 check "speech was told with q, not end of input" "q" \
@@ -123,6 +133,7 @@ check "the draft partials are not in it" "0" \
     "$(/usr/bin/jq '[.segments[] | select(.text == "hello" or .text == "and more")] | length' "$run/result.json" 2>/dev/null)"
 check "Export is enabled" "1" "$(ui_enabled "$LIVE_EXPORT_MENU")"
 check "Live is enabled again" "1" "$(ui_enabled "$LIVE_BTN")"
+check "reading Live, with the clock hidden" "Live|accentColor|0" "$(ui_prop "$LIVE_BTN" title)|$(ui_prop "$LIVE_BTN" tint)|$(ui_visible "$LIVE_CLOCK")"
 check "the holder exited with speech" "0" "$(wait_for_no_holders "$run"; holders_for "$run")"
 
 section "a live transcript exports like any other"
@@ -253,11 +264,12 @@ poll_tick
 check "the card is gone" "0" "$(ui_visible "$LIVE_CARD")"
 check "and the transcript it covered is there" "Hello world.
 and more ..." "$(ui_value "$LIVE_TRANSCRIPT")"
-omc_run speech.stop
+omc_run speech.live
 omc_wait_for "! /bin/kill -0 $pid 2>/dev/null"
 poll_tick
 
-section "Stop while the session gets ready takes the card down"
+section "Live, reading Stop, stops a session still getting ready once the grace has passed, and takes the card down"
+SPEECH_STOP_GRACE=0
 /bin/rm -f "$FAKE_SPEECH_LOG.open" "$FAKE_SPEECH_LOG.words"
 FAKE_SPEECH_STREAM=gated
 export FAKE_SPEECH_STREAM
@@ -266,7 +278,9 @@ unset FAKE_SPEECH_STREAM
 run="$(run_dir)"
 pid="$(/bin/cat "$run/speech.pid")"
 check "the card is up" "1" "$(ui_visible "$LIVE_CARD")"
-omc_run speech.stop
+check "Live is enabled though the microphone has not opened" "Stop|1" "$(ui_prop "$LIVE_BTN" title)|$(ui_enabled "$LIVE_BTN")"
+omc_run speech.live
+check "the session is stopping" "stopping" "$(/bin/cat "$run/state")"
 check "Stop took it down at once" "0" "$(ui_visible "$LIVE_CARD")"
 open_gate open
 open_gate words
@@ -274,6 +288,7 @@ check "speech exited" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" &
 poll_tick
 check "and it stays down" "0" "$(ui_visible "$LIVE_CARD")"
 /bin/rm -f "$FAKE_SPEECH_LOG.open" "$FAKE_SPEECH_LOG.words"
+SPEECH_STOP_GRACE=600
 
 # ------------------------------------------------------------------------------------------------
 section "a model that cannot stream is refused, and says why"

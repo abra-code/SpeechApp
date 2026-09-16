@@ -1,6 +1,6 @@
 # speech.recordings.selected - the selection in the recordings table changed. The table keeps each
 # recording's path in a hidden third column. The selected recording's last transcript in this
-# window, if it has one, is shown beside the list.
+# window, if it has one, is shown beside the list, and what its Status stands for in the status line.
 #
 # Replacing the table's rows can report an empty selection that no one made. Inside the quiet
 # window that follows a programmatic update, an empty selection is taken for that echo and
@@ -25,10 +25,16 @@ if [ -z "$path" ]; then
     [ "$quiet" -eq 0 ] && exit 0
     /bin/rm -f "$pane/selected.key"
     show_transcript_file ""
+    show_recording_detail "$pane" ""
 else
     key="$(item_key "$path")"
+    previous="$(read_state "$pane/selected.key")"
     write_state "$pane/selected.key" "$key"
     show_transcript_file "$pane/items/$key/transcript.txt"
+    # The Status column keeps to a word or two; choosing a recording says the rest. Only a new
+    # choice does: the table's own refresh re-selects the same row every time its rows change, and
+    # would otherwise put this over the progress of a batch.
+    [ "$key" != "$previous" ] && show_recording_detail "$pane" "$path"
 fi
 
 # Playing follows the selection, so the play button always means the row the user is looking at and

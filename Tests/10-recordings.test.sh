@@ -18,6 +18,8 @@ record_tag() { /usr/bin/xattr -p com.abracode.speech.transcript "$1" 2>/dev/null
 
 # A recording's row in the table: name <TAB> status <TAB> path.
 row_of() { ui_rows "$REC_TABLE" | /usr/bin/awk -F'\t' -v path="$1" '$3 == path { print $1 "|" $2 }'; }
+# The sentence behind a row's status, which the status line shows when the recording is selected.
+detail_of() { pane_call recordings recording_detail "$(rec_pane)" "$1"; }
 
 # ------------------------------------------------------------------------------------------------
 section "a window opened for recordings lists them in the Recordings tab and starts the poller"
@@ -59,6 +61,7 @@ check "the locale's language is chosen" "en" "$(/bin/cat "$(rec_pane)/language.t
 pane_call recordings refresh_recordings_actions "$(rec_pane)"
 check "Transcribe is enabled with recordings and a model" "1" "$(ui_enabled "$REC_TRANSCRIBE_BTN")"
 check "Stop is not" "0" "$(ui_enabled "$REC_STOP_BTN")"
+check "it is hidden, and Record holds its place" "0|1" "$(ui_visible "$REC_STOP_BTN")|$(ui_visible "$REC_RECORD_BTN")"
 check "Remove is not, with nothing selected" "0" "$(ui_enabled "$REC_REMOVE_BTN")"
 check "the status says what is ready" \
     "Ready to transcribe 2 recordings with Apple long-form (built in)." "$(ui_value "$REC_STATUS")"
@@ -156,13 +159,13 @@ check "the batch is running" "running" "$(/bin/cat "$(rec_pane)/batch")"
 check "both recordings wait" "interview take 1.wav|Waiting" "$(row_of "$rec1")"
 check_absent "the handler started no process: the poller starts each recording" "$FAKE_SPEECH_LOG"
 check "Transcribe is disabled" "0" "$(ui_enabled "$REC_TRANSCRIBE_BTN")"
-check "Stop is enabled" "1" "$(ui_enabled "$REC_STOP_BTN")"
+check "Stop is enabled, shown in Record's place" "1|1|0" "$(ui_enabled "$REC_STOP_BTN")|$(ui_visible "$REC_STOP_BTN")|$(ui_visible "$REC_RECORD_BTN")"
 check "the pickers are disabled" "0" "$(ui_enabled "$REC_MODEL_PICKER")"
 poll_tick
 check "the first tick started only the first recording, with its model and language" \
     "--json transcribe $rec1 --model apple.transcriber --language en --format json --output $(item_dir "$rec1")/result.json" \
     "$(omc_wait_for "[ -s \"$FAKE_SPEECH_LOG\" ]" && /usr/bin/paste -sd '|' "$FAKE_SPEECH_LOG")"
-check "its row says so" "interview take 1.wav|Transcribing..." "$(row_of "$rec1")"
+check "its row says so" "interview take 1.wav|Transcribing" "$(row_of "$rec1")"
 check "the other still waits" "second.m4a|Waiting" "$(row_of "$rec2")"
 check "the recording's fingerprint was taken" "yes" "$(/usr/bin/grep -Eq '^[0-9a-f]{16}$' "$(item_dir "$rec1")/recording.fp" && echo yes || echo no)"
 run_batch
@@ -175,12 +178,24 @@ check "it is the text export of that recording's transcript" \
     "Transcript from $(item_dir "$rec1")/result.json as txt" "$(/bin/cat "$txt1")"
 check "Speech's record is on it" "speech-transcript-v1" "$(record_tag "$txt1")"
 check "no hidden temporary file is left behind" "" "$(/bin/ls -A "$OMCTEST_WORK" | /usr/bin/grep '\.speech-')"
-check "the row says where it went" "interview take 1.wav|Saved as interview take 1 - apple.transcriber.txt" "$(row_of "$rec1")"
+check "the row says where it went" "interview take 1.wav|Saved|The transcript of interview take 1.wav is saved beside it as interview take 1 - apple.transcriber.txt." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check "Transcribe is available again" "1" "$(ui_enabled "$REC_TRANSCRIBE_BTN")"
 check "Stop is disabled again" "0" "$(ui_enabled "$REC_STOP_BTN")"
+check "and hidden, with Record back" "0|1" "$(ui_visible "$REC_STOP_BTN")|$(ui_visible "$REC_RECORD_BTN")"
 check "the summary stays until something changes" "Done. 2 saved beside the recordings." "$(ui_value "$REC_STATUS")"
 
 section "selecting a recording shows its transcript, and Export and Copy work on it"
+omc_table_cell "$REC_TABLE" 3 "$rec1"
+omc_run speech.recordings.selected
+check "the status line says what Saved stands for" \
+    "The transcript of interview take 1.wav is saved beside it as interview take 1 - apple.transcriber.txt." "$(ui_value "$REC_STATUS")"
+pane_call recordings set_status "Transcribing second.m4a... 40%"
+omc_run speech.recordings.selected
+check "the table's own re-selection of the same row says nothing again" "Transcribing second.m4a... 40%" "$(ui_value "$REC_STATUS")"
+end_quiet_window
+omc_table_cell "$REC_TABLE" 3 ""
+omc_run speech.recordings.selected
+check "selecting nothing takes the detail away" "no note" "$(/bin/cat "$(rec_pane)/status.note" 2>/dev/null || echo no note)"
 omc_table_cell "$REC_TABLE" 3 "$rec1"
 omc_run speech.recordings.selected
 check "the transcript is one line per segment, trimmed, tabs flattened" \
@@ -223,7 +238,7 @@ section "running again with the same model replaces Speech's own untouched trans
 omc_run speech.recordings.transcribe
 run_batch
 check "both were saved again" "Done. 2 saved beside the recordings." "$(ui_value "$REC_STATUS")"
-check "the row says so" "interview take 1.wav|Saved as interview take 1 - apple.transcriber.txt" "$(row_of "$rec1")"
+check "the row says so" "interview take 1.wav|Saved|The transcript of interview take 1.wav is saved beside it as interview take 1 - apple.transcriber.txt." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check "the record is still on it" "speech-transcript-v1" "$(record_tag "$txt1")"
 
 section "a transcript edited after Speech wrote it is left alone"
@@ -233,9 +248,9 @@ run_batch
 check "the status points at the reason" \
     "Done. 1 saved beside the recording, 1 not saved - the Status column says why." "$(ui_value "$REC_STATUS")"
 check "the row says why" \
-    "interview take 1.wav|Not saved: interview take 1 - apple.transcriber.txt was edited after Speech wrote it." "$(row_of "$rec1")"
+    "interview take 1.wav|Not saved|The transcript of interview take 1.wav was not saved: interview take 1 - apple.transcriber.txt was edited after Speech wrote it." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check_grep "the edit survives" "my own correction" "$txt1"
-check "the other recording was still saved" "second.m4a|Saved as second - apple.transcriber.txt" "$(row_of "$rec2")"
+check "the other recording was still saved" "second.m4a|Saved|The transcript of second.m4a is saved beside it as second - apple.transcriber.txt." "$(row_of "$rec2")|$(detail_of "$rec2")"
 omc_table_cell "$REC_TABLE" 3 "$rec1"
 omc_run speech.recordings.selected
 check "the unsaved transcript is still in the window" \
@@ -249,20 +264,20 @@ printf 'notes the user wrote\n' > "$txt1"
 omc_run speech.recordings.transcribe
 run_batch
 check "the row says why" \
-    "interview take 1.wav|Not saved: interview take 1 - apple.transcriber.txt already exists and was not written by Speech." "$(row_of "$rec1")"
+    "interview take 1.wav|Not saved|The transcript of interview take 1.wav was not saved: interview take 1 - apple.transcriber.txt already exists and was not written by Speech." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check "the notes survive" "notes the user wrote" "$(/bin/cat "$txt1")"
 
 section "a transcript of an earlier version of the recording is left alone"
 /bin/rm -f "$txt1"
 omc_run speech.recordings.transcribe
 run_batch
-check "saved while nothing is in the way" "interview take 1.wav|Saved as interview take 1 - apple.transcriber.txt" "$(row_of "$rec1")"
+check "saved while nothing is in the way" "interview take 1.wav|Saved|The transcript of interview take 1.wav is saved beside it as interview take 1 - apple.transcriber.txt." "$(row_of "$rec1")|$(detail_of "$rec1")"
 printf ' and a longer take' >> "$rec1"
 before="$(/bin/cat "$txt1")"
 omc_run speech.recordings.transcribe
 run_batch
 check "the row says why" \
-    "interview take 1.wav|Not saved: interview take 1 - apple.transcriber.txt was written from a different version of the recording." "$(row_of "$rec1")"
+    "interview take 1.wav|Not saved|The transcript of interview take 1.wav was not saved: interview take 1 - apple.transcriber.txt was written from a different version of the recording." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check "the old transcript is untouched" "$before" "$(/bin/cat "$txt1")"
 
 section "a recording that changes while it is transcribed is not saved"
@@ -280,7 +295,7 @@ printf ' edited mid-run' >> "$rec1"
 omc_wait_for "! /bin/kill -0 $pid 2>/dev/null"
 unset FAKE_SPEECH_MODE
 poll_tick
-check "the row says why" "interview take 1.wav|Not saved: the recording changed while it was being transcribed." "$(row_of "$rec1")"
+check "the row says why" "interview take 1.wav|Not saved|The transcript of interview take 1.wav was not saved: the recording changed while it was being transcribed." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check_absent "nothing was written" "$txt1"
 run_batch
 reap_fake
@@ -312,8 +327,8 @@ export FAKE_SPEECH_FAIL_FILE
 omc_run speech.recordings.transcribe
 run_batch
 unset FAKE_SPEECH_FAIL_FILE
-check "the row carries the error event's message" "interview take 1.wav|Failed: cannot decode the recording" "$(row_of "$rec1")"
-check "the next recording was still transcribed" "second.m4a|Saved as second - apple.transcriber.txt" "$(row_of "$rec2")"
+check "the row carries the error event's message" "interview take 1.wav|Failed|interview take 1.wav could not be transcribed: cannot decode the recording" "$(row_of "$rec1")|$(detail_of "$rec1")"
+check "the next recording was still transcribed" "second.m4a|Saved|The transcript of second.m4a is saved beside it as second - apple.transcriber.txt." "$(row_of "$rec2")|$(detail_of "$rec2")"
 check "the status counts it" "Done. 1 saved beside the recording, 1 failed - the Status column says why." "$(ui_value "$REC_STATUS")"
 check "no alert for one recording among several" "0" "$(/usr/bin/grep -c '^title' "$present_alerts" 2>/dev/null)"
 
@@ -326,7 +341,7 @@ omc_run speech.drop
 /bin/rm -f "$FAKE_SPEECH_LOG"
 omc_run speech.recordings.transcribe
 run_batch
-check "its row says so" "gone soon.wav|Failed: The recording is no longer there." "$(row_of "$rec3")"
+check "its row says so" "gone soon.wav|Failed|gone soon.wav could not be transcribed: The recording is no longer there." "$(row_of "$rec3")|$(detail_of "$rec3")"
 check "speech ran for the other two only" "2" "$(/usr/bin/grep -c ' transcribe ' "$FAKE_SPEECH_LOG")"
 
 # ------------------------------------------------------------------------------------------------

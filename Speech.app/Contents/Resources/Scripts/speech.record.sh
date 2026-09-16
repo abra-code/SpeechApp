@@ -1,13 +1,24 @@
 # speech.record - record a new sound file from the microphone, into the recordings folder
 # (~/Documents/Speech Recordings). The handler only starts `speech record` and its stdin holder;
-# the poller shows the level while it runs, and when it ends adds the file to the list, ready to
-# transcribe. Stop ends it with "q", which keeps everything recorded.
+# the poller shows the elapsed time and the microphone while it runs, and when it ends adds the file
+# to the list, ready to transcribe. Stop, or Record pressed again, ends it with "q", which keeps
+# everything recorded.
 
 . "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.sh"
 
 pane="$(pane_dir_for "$window_uuid" recordings)"
 [ -n "$window_uuid" ] && [ -d "$pane" ] || exit 0
 use_pane recordings
+
+# While recording, Record is the Stop button, from when capture_can_stop says. Before that it starts
+# nothing, so a double click cannot start a recording and stop it at once.
+capture_can_stop "$(capture_dir "$pane")"
+stoppable=$?
+if [ "$stoppable" -eq 0 ]; then
+    request_capture_stop "$pane"
+    stopped=$?
+    [ "$stopped" -eq 0 ] && exit 0
+fi
 
 # Shared with Transcribe: one thing at a time in the tab, whichever button started it.
 /bin/mkdir "$pane/dispatch.lock" 2>/dev/null
@@ -67,7 +78,7 @@ for old in "$pane"/capture-*; do
 done
 
 /bin/rm -f "$pane/status.note"
-"$dialog" "$window_uuid" "$REC_LEVEL" "0"
+"$dialog" "$window_uuid" "$REC_CLOCK" "0:00"
 set_status "Starting the microphone..."
 /bin/rm -f "$pane/actions.sig"
 refresh_recordings_actions "$pane"
