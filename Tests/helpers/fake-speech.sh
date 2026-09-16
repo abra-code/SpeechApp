@@ -24,6 +24,9 @@
 #                          --report's summary.json from eval.summary.json with the model filled in),
 #                          fail (an error event, exit 1), crash (dies on SIGABRT with nothing
 #                          said), or hang (one scored recording, then wait to be signaled)
+#   FAKE_SPEECH_STREAM     `stream` behavior: ok (default), or gated: after engine.ready, wait for
+#                          <FAKE_SPEECH_LOG>.open before stream.started, then for <FAKE_SPEECH_LOG>.words
+#                          before the first words, so a test can look at each moment in between
 #
 # In hang mode the process replaces itself with sleep under its own name (exec -a), so its argv
 # still starts with the SPEECH_BIN path. That is what the applet's argv check requires before it
@@ -209,6 +212,15 @@ case "$verb" in
         # to say stop - "q" on a line, or end of input. How it was told is written beside the log,
         # because the two stop paths are what the tests are about.
         printf '%s\n' '{"engine":"apple.transcriber","load_seconds":0.1,"model":"apple.transcriber","t":0.1,"type":"engine.ready"}'
+        gated=no
+        [ "${FAKE_SPEECH_STREAM:-ok}" = gated ] && gated=yes
+        if [ "$gated" = yes ]; then
+            while [ ! -f "$log.open" ]; do /bin/sleep 0.1; done
+        fi
+        printf '%s\n' '{"device":"Test Microphone","device_uid":"TestMicrophone","sample_rate":48000,"t":0.2,"type":"stream.started"}'
+        if [ "$gated" = yes ]; then
+            while [ ! -f "$log.words" ]; do /bin/sleep 0.1; done
+        fi
         printf '%s\n' '{"end":1,"id":0,"start":0,"t":0.5,"text":"hello","type":"segment.partial"}'
         printf '%s\n' '{"end":1.5,"id":0,"start":0,"t":1.0,"text":"Hello world.","type":"segment.final","words":[{"end":0.6,"start":0,"text":"Hello"},{"end":1.5,"start":0.6,"text":"world."}]}'
         printf '%s\n' '{"end":2,"id":1,"start":1.6,"t":1.2,"text":"and more","type":"segment.partial"}'

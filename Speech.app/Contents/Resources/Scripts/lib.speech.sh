@@ -99,6 +99,12 @@ LIVE_EXPORT_MENU=50
 LIVE_COPY_BTN=55
 LIVE_TRANSCRIPT=200
 LIVE_STATUS=300
+# The card over the transcript while a session gets ready, and for a moment once it listens.
+LIVE_CARD=230
+LIVE_CARD_SPINNER=231
+LIVE_CARD_MIC=232
+LIVE_CARD_TITLE=233
+LIVE_CARD_DETAIL=234
 
 # The Recordings tab.
 REC_MODEL_PICKER=125
@@ -993,8 +999,8 @@ process_events() {   # $1 = pane dir
     [ -n "$_position" ] && _name="$_name ($_position)"
     local _status=""
     : > "$_run/segments.new"
-    local _type _id _text _percent _phase _message _segments _audio _wall _rtfx _file _event_model
-    while IFS="$US" read -r _type _id _text _percent _phase _message _segments _audio _wall _rtfx _file _event_model; do
+    local _type _id _text _percent _phase _message _segments _audio _wall _rtfx _file _event_model _device
+    while IFS="$US" read -r _type _id _text _percent _phase _message _segments _audio _wall _rtfx _file _event_model _device; do
         case "$_type" in
             segment.partial) printf '%s\tpartial\t%s\n' "$_id" "$_text" >> "$_run/segments.new" ;;
             segment.final)   printf '%s\tfinal\t%s\n' "$_id" "$_text" >> "$_run/segments.new" ;;
@@ -1020,10 +1026,18 @@ process_events() {   # $1 = pane dir
             engine.ready)
                 /bin/rm -f "$_run/language_files.phase" "$_run/language_files.since" "$_run/language_files.moved" "$_run/language_files.shown"
                 if [ "$_kind" = live ]; then
-                    _status="Listening. Speak now."
+                    # The model is loaded, but the microphone is not open yet: speech said now
+                    # would be lost. stream.started is the moment to speak.
+                    _status="Turning on the microphone..."
                 else
                     _status="Transcribing $_name..."
                 fi
+                ;;
+            stream.started)
+                [ -f "$_run/listening.since" ] || write_state "$_run/listening.since" "$(/bin/date +%s)"
+                write_state "$_run/device" "$_device"
+                # Stop may have been pressed in the moment before; its "Stopping..." stands.
+                [ "$(read_state "$_run/state")" = running ] && _status="Listening. Speak now."
                 ;;
             warning)
                 printf '%s\n' "$_message" >> "$_run/warnings.txt"
@@ -1046,8 +1060,17 @@ process_events() {   # $1 = pane dir
     done < "$_run/events.records"
     /bin/rm -f "$_run/events.records"
 
+    # Words prove the microphone is open, for a speech that does not send stream.started.
+    if [ "$_kind" = live ] && [ -s "$_run/segments.new" ] && [ ! -f "$_run/listening.since" ]; then
+        write_state "$_run/listening.since" "$(/bin/date +%s)"
+    fi
+
     # Only the last status of the batch is worth showing.
     [ -n "$_status" ] && set_status "$_status"
+    # The Live card repeats what a session is waiting for.
+    if [ "$_kind" = live ] && [ -n "$_status" ]; then
+        write_state "$_run/progress.text" "$_status"
+    fi
 
     local _merged=1
     if [ -s "$_run/segments.new" ]; then
@@ -1859,6 +1882,7 @@ poll_live() {   # $1 = spool
         finish_if_exited "$_pane"
         reflect_run_end "$_pane"
     fi
+    refresh_live_card "$_pane"
     refresh_live_actions "$_pane"
 }
 
@@ -1894,6 +1918,64 @@ poll_recordings() {   # $1 = spool
 # One function per pane decides every control's state from the spool, so a handler and the poller
 # cannot disagree. The poller calls them every tick; the signature file keeps a tick that changes
 # nothing from writing to the window, and a handler that changes state removes the signature.
+
+# The card over the Live transcript. The status line says the same things in small type, which is
+# easy to miss, and words spoken before the microphone is open are lost. So while a session gets
+# ready the card says not to speak yet and what it is waiting for, and once the microphone is open
+# it says to speak, until the first words arrive or LIVE_SPEAK_SECONDS pass.
+#   run's listening.since   epoch seconds of stream.started, or of the first words
+#   run's device            the microphone stream.started named
+#   run's progress.text     the last status the session's events gave
+#   pane's card.sig         what the card shows now, so an unchanged tick writes nothing
+LIVE_SPEAK_SECONDS=3
+
+refresh_live_card() {   # $1 = pane dir
+    local _run="$(current_run_dir "$1")"
+    local _state=""
+    [ -n "$_run" ] && _state="$(read_state "$_run/state")"
+    local _card=none
+    local _detail=""
+    if [ "$_state" = running ]; then
+        local _since="$(read_state "$_run/listening.since")"
+        if [ -z "$_since" ]; then
+            _card=wait
+            # A language download rewrites its status every tick with the time spent.
+            _detail="$(read_state "$_run/language_files.shown")"
+            [ -n "$_detail" ] || _detail="$(read_state "$_run/progress.text")"
+        elif [ ! -s "$_run/segments.tsv" ]; then
+            case "$_since" in *[!0-9]*) _since=0 ;; esac
+            local _now="$(/bin/date +%s)"
+            if [ $((_now - _since)) -lt "$LIVE_SPEAK_SECONDS" ]; then
+                _card=speak
+                local _device="$(read_state "$_run/device")"
+                _detail="Listening to ${_device:-the microphone}."
+            fi
+        fi
+    fi
+
+    local _signature="$_card|$_detail"
+    [ "$_signature" = "$(read_state "$1/card.sig")" ] && return 0
+    write_state "$1/card.sig" "$_signature"
+    case "$_card" in
+        wait)
+            "$dialog" "$window_uuid" "$LIVE_CARD_MIC" omc_hide
+            "$dialog" "$window_uuid" "$LIVE_CARD_SPINNER" omc_show
+            "$dialog" "$window_uuid" "$LIVE_CARD_TITLE" "Getting ready. Don't speak yet."
+            "$dialog" "$window_uuid" "$LIVE_CARD_DETAIL" "$_detail"
+            "$dialog" "$window_uuid" "$LIVE_CARD" omc_show
+            ;;
+        speak)
+            "$dialog" "$window_uuid" "$LIVE_CARD_SPINNER" omc_hide
+            "$dialog" "$window_uuid" "$LIVE_CARD_MIC" omc_show
+            "$dialog" "$window_uuid" "$LIVE_CARD_TITLE" "Speak now."
+            "$dialog" "$window_uuid" "$LIVE_CARD_DETAIL" "$_detail"
+            "$dialog" "$window_uuid" "$LIVE_CARD" omc_show
+            ;;
+        *)
+            "$dialog" "$window_uuid" "$LIVE_CARD" omc_hide
+            ;;
+    esac
+}
 
 refresh_live_actions() {   # $1 = pane dir
     use_pane live

@@ -71,11 +71,15 @@ if [ -z "$pid" ]; then
     exit 0
 fi
 write_state "$run/speech.pid" "$pid"
+# The card's first words go in before the run is current: once it is, the poller may have consumed
+# engine.ready and written a newer status, which a later write here would put back.
+write_state "$run/progress.text" "Loading $label..."
 # The run becomes current only once its pid is on disk: the poller settles a running run whose
 # process it cannot find as failed.
 activate_run_dir "$pane" "$run"
 
-set_status "Starting the microphone with $label..."
+set_status "Loading $label..."
+refresh_live_card "$pane"
 /bin/rm -f "$pane/actions.sig"
 refresh_live_actions "$pane"
 

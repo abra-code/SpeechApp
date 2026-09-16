@@ -21,6 +21,7 @@ write_state "$run/state" stopping
 : > "$run/stop.request"
 set_status "Stopping..."
 /bin/rm -f "$pane/actions.sig"
+refresh_live_card "$pane"
 refresh_live_actions "$pane"
 
 exit 0

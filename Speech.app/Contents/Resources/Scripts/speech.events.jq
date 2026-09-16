@@ -2,10 +2,11 @@
 # shell loop reads fields with `read` instead of starting a JSON parser per field.
 #
 #   type US id US text US percent US phase US message US segments US audio_seconds
-#        US wall_seconds US rtfx US file US model
+#        US wall_seconds US rtfx US file US model US device
 #
 # `file` and `model` let model.progress say what is being fetched: for Apple's engines, `file` is
-# the locale whose speech files macOS is downloading.
+# the locale whose speech files macOS is downloading. `device` is the microphone stream.started
+# names.
 #
 # US is the ASCII unit separator (0x1F), not a tab: tab is whitespace to the shell's `read`, so
 # two tabs around an empty field would collapse into one and shift every field after it. A field
@@ -28,7 +29,8 @@ def clean: if . == null then "" else tostring | gsub("[\t\r\n\u001f]"; " ") end;
   .wall_seconds,
   (if .rtfx == null then null else (.rtfx | round) end),
   .file,
-  .model
+  .model,
+  .device
 ]
 | map(clean)
 | join("\u001f")

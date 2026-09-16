@@ -84,17 +84,62 @@
                 ]
               },
               {
-                "type": "TextEditor",
-                "id": 200,
-                "properties": {
-                  "readOnly": true,
-                  "placeholder": "Press Live and speak. The transcript appears here as you talk.",
-                  "font": { "size": 13, "design": "default" },
-                  "background": "background.secondary",
-                  "scrollContentBackground": "hidden",
-                  "cornerRadius": 8,
-                  "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
-                }
+                "type": "ZStack",
+                "properties": { "frame": { "maxWidth": "infinity", "maxHeight": "infinity" } },
+                "children": [
+                  {
+                    "type": "TextEditor",
+                    "id": 200,
+                    "properties": {
+                      "readOnly": true,
+                      "placeholder": "Press Live and speak. The transcript appears here as you talk.",
+                      "font": { "size": 13, "design": "default" },
+                      "background": "background.secondary",
+                      "scrollContentBackground": "hidden",
+                      "cornerRadius": 8,
+                      "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
+                    }
+                  },
+                  {
+                    "type": "VStack",
+                    "id": 230,
+                    "properties": { "hidden": true },
+                    "children": [
+                      {
+                        "type": "VStack",
+                        "properties": {
+                          "spacing": 12,
+                          "padding": 28,
+                          "frame": { "width": 420 }
+                        },
+                        "background": {
+                          "type": "RoundedRectangle",
+                          "properties": { "cornerRadius": 14, "cornerStyle": "continuous", "fill": "background", "shadow": { "color": "#0000001F", "radius": 12, "y": 4 } }
+                        },
+                        "children": [
+                          {
+                            "type": "ZStack",
+                            "properties": { "frame": { "height": 44 } },
+                            "children": [
+                              { "type": "ProgressView", "id": 231, "properties": { "progressViewStyle": "circular", "controlSize": "large" } },
+                              { "type": "Image", "id": 232, "properties": { "systemName": "mic.fill", "font": { "size": 36 }, "foregroundStyle": "green", "hidden": true } }
+                            ]
+                          },
+                          {
+                            "type": "Text",
+                            "id": 233,
+                            "properties": { "text": "Getting ready. Don't speak yet.", "font": "title2", "multilineTextAlignment": "center" }
+                          },
+                          {
+                            "type": "Text",
+                            "id": 234,
+                            "properties": { "text": "", "font": "callout", "foregroundStyle": "secondary", "multilineTextAlignment": "center" }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
               },
               {
                 "type": "HStack",

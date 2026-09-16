@@ -65,6 +65,8 @@ section "Live starts speech stream with the model and language, and its stdin ho
 /bin/rm -f "$FAKE_SPEECH_LOG" "$stop_log"
 omc_run speech.live
 check_status "live exits cleanly" 0
+check "the card is up the moment Live is pressed, saying not to speak yet" "1|Getting ready. Don't speak yet.|Loading Apple long-form (built in)..." \
+    "$(ui_visible "$LIVE_CARD")|$(ui_value "$LIVE_CARD_TITLE")|$(ui_value "$LIVE_CARD_DETAIL")"
 check "speech stream was started with the model and language" \
     "--json stream --model apple.transcriber --language en" \
     "$(omc_wait_for "[ -s \"$FAKE_SPEECH_LOG\" ]" && /usr/bin/head -1 "$FAKE_SPEECH_LOG")"
@@ -79,6 +81,7 @@ check "the finished utterance and the one still spoken are shown, the draft mark
     "Hello world.
 and more ..." "$(ui_value "$LIVE_TRANSCRIPT")"
 check "the status says to speak" "Listening. Speak now." "$(ui_value "$LIVE_STATUS")"
+check "the card is gone: the words are the proof the microphone is open" "0" "$(ui_visible "$LIVE_CARD")"
 check "Stop is enabled" "1" "$(ui_enabled "$LIVE_STOP_BTN")"
 check "Live is disabled while listening" "0" "$(ui_enabled "$LIVE_BTN")"
 check "the model picker is disabled while listening" "0" "$(ui_enabled "$LIVE_MODEL_PICKER")"
@@ -203,6 +206,74 @@ check "speech was started" "yes" "$started"
 check "speech was told by end of input, with no one asking" "eof" \
     "$(omc_wait_for "[ -s \"$stop_log\" ]" 10 && /bin/cat "$stop_log")"
 check "speech exited" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" && echo dead || echo alive)"
+
+# ------------------------------------------------------------------------------------------------
+# The fake holds the session at each moment in turn: loaded but the microphone not open, then
+# listening with nothing said.
+card() { printf '%s|%s|%s|%s|%s' "$(ui_visible "$LIVE_CARD")" "$(ui_visible "$LIVE_CARD_SPINNER")" \
+    "$(ui_visible "$LIVE_CARD_MIC")" "$(ui_value "$LIVE_CARD_TITLE")" "$(ui_value "$LIVE_CARD_DETAIL")"; }
+open_gate() { : > "$FAKE_SPEECH_LOG.$1"; }
+
+section "the card says not to speak until the microphone is open, and then to speak"
+open_window
+/bin/rm -f "$FAKE_SPEECH_LOG" "$FAKE_SPEECH_LOG.open" "$FAKE_SPEECH_LOG.words" "$stop_log"
+FAKE_SPEECH_STREAM=gated
+export FAKE_SPEECH_STREAM
+omc_run speech.live
+unset FAKE_SPEECH_STREAM
+run="$(run_dir)"
+pid="$(/bin/cat "$run/speech.pid")"
+check "while the model loads: a spinner, and not to speak yet" \
+    "1|1|0|Getting ready. Don't speak yet.|Loading Apple long-form (built in)..." "$(card)"
+omc_wait_for "/usr/bin/grep -q 'engine.ready' \"$run/events.jsonl\""
+poll_tick
+check "the model is loaded but the microphone is not open: still not yet" \
+    "1|1|0|Getting ready. Don't speak yet.|Turning on the microphone..." "$(card)"
+check "the status line says the same" "Turning on the microphone..." "$(ui_value "$LIVE_STATUS")"
+open_gate open
+omc_wait_for "/usr/bin/grep -q 'stream.started' \"$run/events.jsonl\""
+poll_tick
+check "the microphone is open: speak now, into the microphone speech named" \
+    "1|0|1|Speak now.|Listening to Test Microphone." "$(card)"
+check "the status line says to speak" "Listening. Speak now." "$(ui_value "$LIVE_STATUS")"
+
+section "the speak card goes after a few seconds of silence"
+printf '%s' "$(($(/bin/date +%s) - LIVE_SPEAK_SECONDS))" > "$run/listening.since"
+poll_tick
+check "the card is gone" "0" "$(ui_visible "$LIVE_CARD")"
+check "the status line still says to speak" "Listening. Speak now." "$(ui_value "$LIVE_STATUS")"
+
+section "the speak card goes as soon as words arrive"
+/bin/date +%s | /usr/bin/tr -d '\n' > "$run/listening.since"
+poll_tick
+check "back while nothing is said" "1" "$(ui_visible "$LIVE_CARD")"
+open_gate words
+omc_wait_for "/usr/bin/grep -q '\"id\":1' \"$run/events.jsonl\""
+poll_tick
+check "the card is gone" "0" "$(ui_visible "$LIVE_CARD")"
+check "and the transcript it covered is there" "Hello world.
+and more ..." "$(ui_value "$LIVE_TRANSCRIPT")"
+omc_run speech.stop
+omc_wait_for "! /bin/kill -0 $pid 2>/dev/null"
+poll_tick
+
+section "Stop while the session gets ready takes the card down"
+/bin/rm -f "$FAKE_SPEECH_LOG.open" "$FAKE_SPEECH_LOG.words"
+FAKE_SPEECH_STREAM=gated
+export FAKE_SPEECH_STREAM
+omc_run speech.live
+unset FAKE_SPEECH_STREAM
+run="$(run_dir)"
+pid="$(/bin/cat "$run/speech.pid")"
+check "the card is up" "1" "$(ui_visible "$LIVE_CARD")"
+omc_run speech.stop
+check "Stop took it down at once" "0" "$(ui_visible "$LIVE_CARD")"
+open_gate open
+open_gate words
+check "speech exited" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" && echo dead || echo alive)"
+poll_tick
+check "and it stays down" "0" "$(ui_visible "$LIVE_CARD")"
+/bin/rm -f "$FAKE_SPEECH_LOG.open" "$FAKE_SPEECH_LOG.words"
 
 # ------------------------------------------------------------------------------------------------
 section "a model that cannot stream is refused, and says why"
