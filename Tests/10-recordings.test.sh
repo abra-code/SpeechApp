@@ -20,6 +20,11 @@ record_tag() { /usr/bin/xattr -p com.abracode.speech.transcript "$1" 2>/dev/null
 row_of() { ui_rows "$REC_TABLE" | /usr/bin/awk -F'\t' -v path="$1" '$3 == path { print $1 "|" $2 }'; }
 # The sentence behind a row's status, which the status line shows when the recording is selected.
 detail_of() { pane_call recordings recording_detail "$(rec_pane)" "$1"; }
+# Transcribe does not transcribe a recording again while its last transcript is current. A section
+# that needs speech to run again forgets them first, as a new window would.
+forget_transcripts() { /bin/rm -rf "$(rec_pane)/items"; }
+# How many times speech was asked to transcribe since the log was last removed.
+transcribe_count() { /usr/bin/grep -c " transcribe " "$FAKE_SPEECH_LOG" 2>/dev/null; }
 
 # ------------------------------------------------------------------------------------------------
 section "a window opened for recordings lists them in the Recordings tab and starts the poller"
@@ -233,11 +238,17 @@ check_absent "the same empty selection later clears it" "$(rec_pane)/selected.ke
 check "and the transcript" "" "$(ui_value "$REC_TRANSCRIPT")"
 
 # ------------------------------------------------------------------------------------------------
-section "running again with the same model replaces Speech's own untouched transcripts"
-/bin/rm -f "$FAKE_SPEECH_LOG"
+section "running again with nothing changed transcribes nothing, and saves Speech's own untouched transcripts again"
+/bin/rm -f "$FAKE_SPEECH_LOG" "$txt2"
 omc_run speech.recordings.transcribe
 run_batch
-check "both were saved again" "Done. 2 saved beside the recordings." "$(ui_value "$REC_STATUS")"
+check "the batch ran to its end" "0" "$?"
+check "speech was not asked to transcribe either recording" "0" "$(transcribe_count)"
+check "both were saved again, and the status says why nothing was transcribed" \
+    "Done. 2 saved beside the recordings. 2 had not changed and were not transcribed again." "$(ui_value "$REC_STATUS")"
+check_exists "a transcript deleted from beside its recording is put back" "$txt2"
+check "it is still the text export of the recording's transcript" \
+    "Transcript from $(item_dir "$rec2")/result.json as txt" "$(/bin/cat "$txt2")"
 check "the row says so" "interview take 1.wav|Saved|The transcript of interview take 1.wav is saved beside it as interview take 1 - apple.transcriber.txt." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check "the record is still on it" "speech-transcript-v1" "$(record_tag "$txt1")"
 
@@ -246,7 +257,7 @@ printf 'my own correction\n' >> "$txt1"
 omc_run speech.recordings.transcribe
 run_batch
 check "the status points at the reason" \
-    "Done. 1 saved beside the recording, 1 not saved - the Status column says why." "$(ui_value "$REC_STATUS")"
+    "Done. 1 saved beside the recording, 1 not saved - the Status column says why. 2 had not changed and were not transcribed again." "$(ui_value "$REC_STATUS")"
 check "the row says why" \
     "interview take 1.wav|Not saved|The transcript of interview take 1.wav was not saved: interview take 1 - apple.transcriber.txt was edited after Speech wrote it." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check_grep "the edit survives" "my own correction" "$txt1"
@@ -274,14 +285,17 @@ run_batch
 check "saved while nothing is in the way" "interview take 1.wav|Saved|The transcript of interview take 1.wav is saved beside it as interview take 1 - apple.transcriber.txt." "$(row_of "$rec1")|$(detail_of "$rec1")"
 printf ' and a longer take' >> "$rec1"
 before="$(/bin/cat "$txt1")"
+/bin/rm -f "$FAKE_SPEECH_LOG"
 omc_run speech.recordings.transcribe
 run_batch
+check "the changed recording was transcribed again, and only it" "1|1" "$(transcribe_count)|$(/usr/bin/grep -Fc "transcribe $rec1 " "$FAKE_SPEECH_LOG")"
 check "the row says why" \
     "interview take 1.wav|Not saved|The transcript of interview take 1.wav was not saved: interview take 1 - apple.transcriber.txt was written from a different version of the recording." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check "the old transcript is untouched" "$before" "$(/bin/cat "$txt1")"
 
 section "a recording that changes while it is transcribed is not saved"
 /bin/rm -f "$txt1"
+forget_transcripts
 FAKE_SPEECH_MODE=hang
 export FAKE_SPEECH_MODE
 omc_run speech.recordings.transcribe
@@ -308,8 +322,10 @@ omc_control "$REC_MODEL_PICKER" 3
 omc_run speech.recordings.model.changed
 check "Whisper is chosen" "ggml.whisper-large-v3-turbo@q8_0" "$(/bin/cat "$(rec_pane)/model.id")"
 check "a model change clears the last summary" "Ready to transcribe 2 recordings with Whisper large-v3-turbo (Q8_0)." "$(ui_value "$REC_STATUS")"
+/bin/rm -f "$FAKE_SPEECH_LOG"
 omc_run speech.recordings.transcribe
 run_batch
+check "another model transcribes both recordings again" "2" "$(transcribe_count)"
 check_exists "Whisper's transcript" "$OMCTEST_WORK/interview take 1 - ggml.whisper-large-v3-turbo@q8_0.txt"
 check_exists "beside Apple's" "$txt1"
 end_quiet_window
@@ -333,6 +349,7 @@ check "the status counts it" "Done. 1 saved beside the recording, 1 failed - the
 check "no alert for one recording among several" "0" "$(/usr/bin/grep -c '^title' "$present_alerts" 2>/dev/null)"
 
 section "a recording that is gone by the time its turn comes fails without starting speech"
+forget_transcripts
 rec3="$OMCTEST_WORK/gone soon.wav"
 printf 'RIFF' > "$rec3"
 omc_drop "$rec3"
@@ -346,6 +363,7 @@ check "speech ran for the other two only" "2" "$(/usr/bin/grep -c ' transcribe '
 
 # ------------------------------------------------------------------------------------------------
 section "Stop ends the recording being transcribed and starts no more"
+forget_transcripts
 FAKE_SPEECH_MODE=hang
 export FAKE_SPEECH_MODE
 /bin/rm -f "$FAKE_SPEECH_LOG"
@@ -368,6 +386,7 @@ check "the status says it stopped" "Stopped. 0 saved beside the recordings." "$(
 reap_fake
 
 section "Stop never signals a process that is not this bundle's speech"
+forget_transcripts
 FAKE_SPEECH_MODE=hang
 export FAKE_SPEECH_MODE
 omc_run speech.recordings.transcribe
@@ -390,6 +409,84 @@ unset FAKE_SPEECH_MODE
 reap_fake
 poll_tick
 check "once the recorded process is gone, the recording settles as stopped" "interview take 1.wav|Stopped" "$(row_of "$rec1")"
+
+# ------------------------------------------------------------------------------------------------
+section "a transcript stands for a new one only when it finished, with the same model and language, from the same recording"
+forget_transcripts
+/bin/rm -f "$FAKE_SPEECH_LOG"
+omc_run speech.recordings.transcribe
+run_batch
+current_of() {   # $1 = model, $2 = language
+    pane_call recordings transcript_is_current "$(item_dir "$rec2")" "$rec2" "$1" "$2"
+    printf '%s' "$?"
+}
+check "the same model and language, and an unchanged recording" "0" "$(current_of apple.transcriber en)"
+check "not with another model" "1" "$(current_of ggml.whisper-large-v3-turbo@q8_0 en)"
+check "not in another language" "1" "$(current_of apple.transcriber auto)"
+printf 'stopped' > "$(item_dir "$rec2")/state"
+check "not when it was stopped" "1" "$(current_of apple.transcriber en)"
+printf 'done' > "$(item_dir "$rec2")/state"
+printf ' changed' >> "$rec2"
+check "not once the recording changed" "1" "$(current_of apple.transcriber en)"
+/bin/rm -f "$FAKE_SPEECH_LOG"
+omc_run speech.recordings.transcribe
+run_batch
+check "so Transcribe transcribes only the changed recording" "1|1" "$(transcribe_count)|$(/usr/bin/grep -Fc "transcribe $rec2 " "$FAKE_SPEECH_LOG")"
+check "and the summary counts the other" "yes" "$(ui_value "$REC_STATUS" | /usr/bin/grep -q ' 1 had not changed and was not transcribed again\.$' && echo yes || echo no)"
+
+section "joining puts each recording's segments after the recordings before it"
+joined="$OMCTEST_WORK/joined.json"
+joined_err="$OMCTEST_WORK/joined.err"
+check "two of the three recordings have a transcript to join" "2" "$(pane_call recordings build_joined_result "$(rec_pane)" "$joined" "$joined_err")"
+check "the second recording's segments start where the first recording ends, 4.437 seconds in" \
+    "0,2.64,4.437,7.077" "$(/usr/bin/jq -r '[.segments[].start * 1000 | round / 1000] | map(tostring) | join(",")' "$joined")"
+check "the segments are numbered through" "0,1,2,3" "$(/usr/bin/jq -r '[.segments[].id] | map(tostring) | join(",")' "$joined")"
+check "the model and the shared language are kept" "apple.transcriber|en-US" "$(/usr/bin/jq -r '.model + "|" + .language' "$joined")"
+/bin/rm -f "$joined" "$joined_err"
+
+section "Join makes Export and Copy take every transcript in the list, in list order"
+end_quiet_window
+omc_table_cell "$REC_TABLE" 3 ""
+omc_run speech.recordings.selected
+check "with nothing selected and Join off, Export and Copy wait" "0|0" "$(ui_enabled "$REC_EXPORT_MENU")|$(ui_enabled "$REC_COPY_BTN")"
+omc_control "$REC_JOIN_TOGGLE" true
+omc_run speech.recordings.join.changed
+check "Join is on in this window" "1" "$(/bin/cat "$(rec_pane)/join" 2>/dev/null)"
+check "and kept for the next one" "1" "$(/bin/cat "$SPEECH_APP_SUPPORT/Settings/recordings.join" 2>/dev/null)"
+check "with Join on, Export and Copy need no selection" "1|1" "$(ui_enabled "$REC_EXPORT_MENU")|$(ui_enabled "$REC_COPY_BTN")"
+printf 'running' > "$(rec_pane)/batch"
+/bin/rm -f "$(rec_pane)/actions.sig"
+pane_call recordings refresh_recordings_actions "$(rec_pane)"
+check "but wait while a batch runs" "0|0" "$(ui_enabled "$REC_EXPORT_MENU")|$(ui_enabled "$REC_COPY_BTN")"
+/bin/rm -f "$FAKE_SPEECH_LOG"
+omc_dialog_answer save_as "$OMCTEST_WORK/Whole talk"
+omc_run speech.recordings.export.txt
+check_absent "and an Export that gets through anyway exports nothing" "$FAKE_SPEECH_LOG"
+check "and says why" "Join waits until the recordings are transcribed." "$(ui_value "$REC_STATUS")"
+/bin/rm -f "$(rec_pane)/batch" "$(rec_pane)/actions.sig"
+pane_call recordings refresh_recordings_actions "$(rec_pane)"
+/bin/rm -f "$FAKE_SPEECH_LOG"
+omc_dialog_answer save_as "$OMCTEST_WORK/Whole talk"
+omc_run speech.recordings.export.srt
+export_line="$(/usr/bin/head -1 "$FAKE_SPEECH_LOG" 2>/dev/null)"
+joined_input="$(printf '%s' "$export_line" | /usr/bin/sed -n 's|^export \(.*/joined\.[0-9]*\.json\) --format srt --output .*$|\1|p')"
+check "speech exported one joined transcript from the pane" "$(rec_pane)" "$(/usr/bin/dirname "$joined_input")"
+check "as srt, the extension added" "export $joined_input --format srt --output $OMCTEST_WORK/Whole talk.srt" "$export_line"
+check "only once" "1" "$(/usr/bin/wc -l < "$FAKE_SPEECH_LOG" | /usr/bin/tr -d ' ')"
+check "the status says how many, and that one was left out" \
+    "Exported 2 transcripts, joined, to Whole talk.srt. 1 recording has no transcript and was left out." "$(ui_value "$REC_STATUS")"
+check "nothing of the join is left in the pane" "" "$(/bin/ls "$(rec_pane)" | /usr/bin/grep '^joined\.')"
+omc_run speech.recordings.copy
+check "Copy puts the transcripts on the clipboard one after another" \
+    "The quick brown fox jumps over the lazy dog.
+Speech recognition on a Mac.
+The quick brown fox jumps over the lazy dog.
+Speech recognition on a Mac." "$(lib_call pb_get general)"
+check "and says so" "Copied 2 transcripts, joined. 1 recording has no transcript and was left out." "$(ui_value "$REC_STATUS")"
+omc_control "$REC_JOIN_TOGGLE" false
+omc_run speech.recordings.join.changed
+check "Join off: back to the selected recording, and there is none" "absent|0|0|0" \
+    "$([ -f "$(rec_pane)/join" ] && echo present || echo absent)|$(/bin/cat "$SPEECH_APP_SUPPORT/Settings/recordings.join")|$(ui_enabled "$REC_EXPORT_MENU")|$(ui_enabled "$REC_COPY_BTN")"
 
 # ------------------------------------------------------------------------------------------------
 section "a dropped file URL is decoded and joins the list; anything else is ignored"

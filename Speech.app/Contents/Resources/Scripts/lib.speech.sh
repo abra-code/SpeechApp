@@ -114,6 +114,7 @@ REC_STOP_BTN=141
 REC_RECORD_BTN=142
 REC_EXPORT_MENU=150
 REC_COPY_BTN=155
+REC_JOIN_TOGGLE=156
 REC_TABLE=160
 REC_ADD_BTN=161
 REC_REMOVE_BTN=162
@@ -785,6 +786,8 @@ handle_language_changed() {   # $1 = pane dir, $2 = picker value
 #   stdin.fifo     a live or record run's stdin; stop.request, written by Stop for the stdin holder
 #   recording.fp   the recording's fingerprint when its transcription started
 #   saved.name, not_saved.txt  what became of the transcript beside the recording
+#   batch.id       the batch that last transcribed the recording, or found its transcript current
+#   reused         the batch found the transcript current and did not transcribe it again
 #   level, audio_seconds  a record run's last input level and the length of what it wrote
 #   summary.txt, error.txt, warnings.txt, reflected, settled
 
@@ -1253,6 +1256,8 @@ reflect_run_end() {   # $1 = pane dir
 #   queue          the paths still to transcribe, one per line
 #   batch          running | stopping; absent when no batch is going
 #   batch.model, batch.language, batch.total, batch.done   the batch's model, language and count
+#   batch.id       the last batch, so its summary counts only the recordings it reached
+#   join           1 while the Join checkbox is on: Export and Copy take every transcript in the list
 #   status.note    how the last batch or recording ended, shown until something changes
 #   selected.key   the item key of the selected recording
 #   capture        the name of the directory of the recording being made, or last made
@@ -1514,43 +1519,75 @@ trash_file() {   # $1 = recording path, $2 = file to write the reason on
 # --- a batch of recordings ---------------------------------------------------------------------
 # Transcribe queues every recording in the list with the pane's model and language. The poller
 # does the rest, one recording at a time: advance_batch settles the recording that finished,
-# starts the next, and says how the batch ended.
+# starts the next, and says how the batch ended. A recording whose last transcript in this window
+# is still current (transcript_is_current) is not transcribed again.
 
 start_batch() {   # $1 = pane dir
-    # A new batch supersedes what the last one left: every recording in the list is transcribed
-    # again, and a row still showing the previous result would read as this batch's.
-    /bin/rm -rf "$1/items"
     /usr/bin/awk 'NF' "$1/list.tsv" > "$1/queue" 2>/dev/null
     write_state "$1/batch.model" "$(read_state "$1/model.id")"
     write_state "$1/batch.language" "$(read_state "$1/language.tag")"
     write_state "$1/batch.total" "$(recording_count "$1")"
     write_state "$1/batch.done" 0
+    write_state "$1/batch.id" "$(/bin/date +%s)-$$"
     /bin/rm -f "$1/status.note" "$1/current"
     write_state "$1/batch" running
 }
 
+# Whether a recording's last transcript can stand for a new one: it finished (a stopped or failed
+# run is transcribed again), with the model and language the batch uses, from a recording whose
+# contents have not changed since. The model id is all that is compared, so a model downloaded
+# again under the same id does not make a transcript stale.
+transcript_is_current() {   # $1 = item dir, $2 = recording path, $3 = model id, $4 = language tag
+    [ "$(read_state "$1/state")" = done ] || return 1
+    [ -s "$1/result.json" ] || return 1
+    [ "$(read_state "$1/model")" = "$3" ] || return 1
+    [ "$(read_state "$1/language")" = "$4" ] || return 1
+    local _recorded="$(read_state "$1/recording.fp")"
+    [ -n "$_recorded" ] || return 1
+    [ -f "$2" ] || return 1
+    local _fp
+    _fp="$(fingerprint_of "$2")"
+    local _fp_status=$?
+    [ "$_fp_status" -eq 0 ] || return 1
+    [ "$_fp" = "$_recorded" ]
+}
+
 # Start transcribing one recording. A recording that is gone, or cannot be fingerprinted, fails
-# here without starting speech; the next tick settles it like any other.
+# here without starting speech; the next tick settles it like any other. A recording whose
+# transcript is current becomes current without a process, marked `reused`, and is settled like a
+# finished one: its transcript is saved beside it again, which puts back a file that was deleted.
 start_item() {   # $1 = pane dir, $2 = path
     local _key="$(item_key "$2")"
     local _item="$1/items/$_key"
-    /bin/rm -rf "$_item"
-    /bin/mkdir -p "$_item"
-    local _mkdir_status=$?
-    [ "$_mkdir_status" -eq 0 ] || return 1
     local _model="$(read_state "$1/batch.model")"
     local _language="$(read_state "$1/batch.language")"
     local _done="$(read_state "$1/batch.done")"
     case "$_done" in ''|*[!0-9]*) _done=0 ;; esac
     _done=$((_done + 1))
     write_state "$1/batch.done" "$_done"
+    local _total="$(read_state "$1/batch.total")"
 
+    transcript_is_current "$_item" "$2" "$_model" "$_language"
+    local _current=$?
+    if [ "$_current" -eq 0 ]; then
+        /bin/rm -f "$_item/settled" "$_item/saved.name" "$_item/not_saved.txt" "$_item/position"
+        [ "${_total:-1}" -gt 1 ] && write_state "$_item/position" "$_done of $_total"
+        write_state "$_item/batch.id" "$(read_state "$1/batch.id")"
+        : > "$_item/reused"
+        write_state "$1/current" "items/$_key"
+        return 0
+    fi
+
+    /bin/rm -rf "$_item"
+    /bin/mkdir -p "$_item"
+    local _mkdir_status=$?
+    [ "$_mkdir_status" -eq 0 ] || return 1
     : > "$_item/segments.tsv"
     write_state "$_item/kind" file
     write_state "$_item/source.path" "$2"
     write_state "$_item/model" "$_model"
     write_state "$_item/language" "$_language"
-    local _total="$(read_state "$1/batch.total")"
+    write_state "$_item/batch.id" "$(read_state "$1/batch.id")"
     [ "${_total:-1}" -gt 1 ] && write_state "$_item/position" "$_done of $_total"
 
     if [ ! -f "$2" ]; then
@@ -1678,53 +1715,62 @@ EOF
 
 # Settle the recording that finished, start the next one, or say how the batch ended. Called by
 # the poller after finish_if_exited, so a current item that is no longer active has exited and
-# been read to the end.
+# been read to the end. Recordings whose transcripts are current are settled in the same tick, one
+# after another, so a list that needs little new work does not wait half a second per recording.
 advance_batch() {   # $1 = pane dir
-    local _batch="$(read_state "$1/batch")"
-    [ -n "$_batch" ] || return 0
-    local _run="$(current_run_dir "$1")"
-    if [ -n "$_run" ]; then
-        case "$(read_state "$_run/state")" in running|stopping) return 0 ;; esac
-        if [ ! -f "$_run/settled" ]; then
-            [ "$(read_state "$_run/state")" = done ] && save_transcript "$_run"
-            : > "$_run/settled"
+    local _batch _run _next
+    while :; do
+        _batch="$(read_state "$1/batch")"
+        [ -n "$_batch" ] || return 0
+        _run="$(current_run_dir "$1")"
+        if [ -n "$_run" ]; then
+            case "$(read_state "$_run/state")" in running|stopping) return 0 ;; esac
+            if [ ! -f "$_run/settled" ]; then
+                [ "$(read_state "$_run/state")" = done ] && save_transcript "$_run"
+                : > "$_run/settled"
+            fi
+            /bin/rm -f "$1/current"
         fi
-        /bin/rm -f "$1/current"
-    fi
 
-    local _next=""
-    [ "$_batch" = running ] && _next="$(/usr/bin/head -1 "$1/queue" 2>/dev/null)"
-    if [ -z "$_next" ]; then
-        /bin/rm -f "$1/queue" "$1/batch"
-        write_state "$1/status.note" "$(batch_summary "$1" "$_batch")"
-        set_status "$(read_state "$1/status.note")"
+        _next=""
+        [ "$_batch" = running ] && _next="$(/usr/bin/head -1 "$1/queue" 2>/dev/null)"
+        if [ -z "$_next" ]; then
+            /bin/rm -f "$1/queue" "$1/batch"
+            write_state "$1/status.note" "$(batch_summary "$1" "$_batch")"
+            set_status "$(read_state "$1/status.note")"
+            /bin/rm -f "$1/actions.sig"
+            return 0
+        fi
+        /usr/bin/tail -n +2 "$1/queue" > "$1/queue.tmp"
+        /bin/mv -f "$1/queue.tmp" "$1/queue"
+        start_item "$1" "$_next"
         /bin/rm -f "$1/actions.sig"
-        return 0
-    fi
-    /usr/bin/tail -n +2 "$1/queue" > "$1/queue.tmp"
-    /bin/mv -f "$1/queue.tmp" "$1/queue"
-    start_item "$1" "$_next"
-    set_status "Transcribing $(/usr/bin/basename "$_next")..."
-    /bin/rm -f "$1/actions.sig"
+        _run="$(current_run_dir "$1")"
+        [ -n "$_run" ] && [ -f "$_run/reused" ] && continue
+        set_status "Transcribing $(/usr/bin/basename "$_next")..."
 
-    # Stop can land between the batch being read as running above and the recording starting, and
-    # then finds no process to signal. Catch it here, or the recording would run to its end.
-    [ "$(read_state "$1/batch")" = stopping ] || return 0
-    _run="$(current_run_dir "$1")"
-    [ -n "$_run" ] || return 0
-    [ "$(read_state "$_run/state")" = running ] || return 0
-    write_state "$_run/state" stopping
-    signal_speech_pid "$(read_state "$_run/speech.pid")" TERM
+        # Stop can land between the batch being read as running above and the recording starting,
+        # and then finds no process to signal. Catch it here, or the recording would run to its end.
+        [ "$(read_state "$1/batch")" = stopping ] || return 0
+        [ -n "$_run" ] || return 0
+        [ "$(read_state "$_run/state")" = running ] || return 0
+        write_state "$_run/state" stopping
+        signal_speech_pid "$(read_state "$_run/speech.pid")" TERM
+        return 0
+    done
 }
 
-# How a batch ended, counted over the list.
+# How a batch ended, counted over the recordings it reached.
 batch_summary() {   # $1 = pane dir, $2 = running | stopping
-    local _saved=0 _not_saved=0 _failed=0
+    local _batch_id="$(read_state "$1/batch.id")"
+    local _saved=0 _not_saved=0 _failed=0 _reused=0
     local _path _item
     while IFS= read -r _path; do
         [ -n "$_path" ] || continue
         _item="$1/items/$(item_key "$_path")"
         [ -d "$_item" ] || continue
+        [ "$(read_state "$_item/batch.id")" = "$_batch_id" ] || continue
+        [ -f "$_item/reused" ] && _reused=$((_reused + 1))
         case "$(read_state "$_item/state")" in
             done)
                 if [ -s "$_item/saved.name" ]; then _saved=$((_saved + 1)); else _not_saved=$((_not_saved + 1)); fi
@@ -1743,7 +1789,13 @@ batch_summary() {   # $1 = pane dir, $2 = running | stopping
     [ "$_not_saved" -gt 0 ] && _text="$_text, $_not_saved not saved"
     [ "$_failed" -gt 0 ] && _text="$_text, $_failed failed"
     [ "$_not_saved" -gt 0 ] || [ "$_failed" -gt 0 ] && _text="$_text - the Status column says why"
-    printf '%s.' "$_text"
+    _text="$_text."
+    if [ "$_reused" = 1 ]; then
+        _text="$_text 1 had not changed and was not transcribed again."
+    elif [ "$_reused" -gt 1 ]; then
+        _text="$_text $_reused had not changed and were not transcribed again."
+    fi
+    printf '%s' "$_text"
 }
 
 # --- recording a new file ------------------------------------------------------------------------
@@ -2245,6 +2297,17 @@ refresh_recordings_actions() {   # $1 = pane dir
     [ "$_item_finished" = 1 ] && [ -s "$_item/result.json" ] && _can_export=1
     local _can_copy=0
     [ "$_item_finished" = 1 ] && [ -s "$_item/transcript.txt" ] && _can_copy=1
+    # With Join on, Export and Copy work on the whole list, whatever is selected, once no batch is
+    # running: a join made halfway would mix this batch's transcripts with the last one's.
+    local _join=0
+    [ "$(read_state "$_pane/join")" = 1 ] && _join=1
+    local _joinable=0
+    if [ "$_join" = 1 ]; then
+        _joinable="$(joinable_items "$_pane" | /usr/bin/awk 'NF { n++ } END { print n + 0 }')"
+        _can_export=0
+        _can_copy=0
+        [ "$_active" = 0 ] && [ "$_joinable" -gt 0 ] && _can_export=1 && _can_copy=1
+    fi
     # Remove and the pickers wait for a recording too: their handlers refuse a busy pane, and an
     # enabled picker would show a choice the pane did not take.
     local _can_remove=0
@@ -2268,7 +2331,7 @@ refresh_recordings_actions() {   # $1 = pane dir
     local _can_pick_model=0
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_models_ready" = 1 ] && _can_pick_model=1
 
-    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_can_trash$_can_play$_can_reveal$_playing_selected|$_models_ready|$_batch|$_capture_state$_capture_stoppable|$_other_busy|$_count|$_selected|$_item_state|$_model"
+    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_can_trash$_can_play$_can_reveal$_playing_selected|$_models_ready|$_batch|$_capture_state$_capture_stoppable|$_other_busy|$_count|$_selected|$_item_state|$_model|$_join$_joinable"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
@@ -2353,4 +2416,110 @@ export_transcript() {   # $1 = format (txt, srt, vtt, json), $2 = run dir
         return 0
     fi
     set_status "Exported to $(/usr/bin/basename "$_dest")."
+}
+
+# --- joining the recordings' transcripts -------------------------------------------------------
+# With the Join checkbox on, Export and Copy take the transcripts of every recording in the list,
+# in list order, as one: someone who records a talk in pieces gets one document, not one per piece.
+# A recording with no transcript is left out, and the status line says how many were.
+
+# The recordings whose transcripts can be joined, in list order: finished (done, stopped or
+# failed, as for exporting one) and with a JSON transcript.
+joinable_items() {   # $1 = pane dir; prints item dirs, one per line
+    [ -f "$1/list.tsv" ] || return 0
+    local _path _item
+    while IFS= read -r _path; do
+        [ -n "$_path" ] || continue
+        _item="$1/items/$(item_key "$_path")"
+        case "$(read_state "$_item/state")" in done|stopped|failed) ;; *) continue ;; esac
+        [ -s "$_item/result.json" ] || continue
+        printf '%s\n' "$_item"
+    done < "$1/list.tsv"
+}
+
+# What the status line adds when some recordings were left out of a join.
+left_out_note() {   # $1 = pane dir, $2 = how many were joined
+    local _left=$(($(recording_count "$1") - $2))
+    if [ "$_left" = 1 ]; then
+        printf ' 1 recording has no transcript and was left out.'
+    elif [ "$_left" -gt 1 ]; then
+        printf ' %s recordings have no transcript and were left out.' "$_left"
+    fi
+}
+
+# Build one JSON transcript from the joinable recordings (speech.join.jq), timed as if the
+# recordings were played one after another. Each recording's length is the audio_seconds_total
+# its transcription reported. Prints how many were joined; returns non-zero, with the reason in
+# $3, when jq cannot read them.
+build_joined_result() {   # $1 = pane dir, $2 = output file, $3 = file for the error
+    local _parts="$2.parts"
+    : > "$_parts"
+    local _count=0
+    local _item _seconds
+    while IFS= read -r _item; do
+        [ -n "$_item" ] || continue
+        _seconds="$("$jq" -r 'select(.type == "progress") | .audio_seconds_total // empty' "$_item/events.jsonl" 2>/dev/null | /usr/bin/tail -1)"
+        case "$_seconds" in ''|*[!0-9.eE+-]*) _seconds=null ;; esac
+        printf '{"seconds":%s,"doc":' "$_seconds" >> "$_parts"
+        /bin/cat "$_item/result.json" >> "$_parts"
+        printf '}\n' >> "$_parts"
+        _count=$((_count + 1))
+    done <<ITEMS
+$(joinable_items "$1")
+ITEMS
+    "$jq" -s -f "$SCRIPTS_DIR/speech.join.jq" "$_parts" > "$2" 2> "$3"
+    local _jq_status=$?
+    /bin/rm -f "$_parts"
+    [ "$_jq_status" -eq 0 ] || return 1
+    printf '%s' "$_count"
+}
+
+# Export > any format with Join on, to the path the Save panel returned.
+export_joined_transcripts() {   # $1 = format (txt, srt, vtt, json), $2 = pane dir
+    local _dest="${OMC_DLG_SAVE_AS_PATH:-}"
+    [ -n "$_dest" ] || return 0
+    if [ -f "$2/batch" ]; then
+        set_status "Join waits until the recordings are transcribed."
+        return 0
+    fi
+    if [ -z "$(joinable_items "$2")" ]; then
+        present_alert "Nothing to export" "Transcribe the recordings first."
+        return 0
+    fi
+    case "$_dest" in
+        *."$1") ;;
+        *) _dest="$_dest.$1" ;;
+    esac
+    local _joined="$2/joined.$$.json"
+    local _err="$2/joined.$$.err"
+    local _count
+    _count="$(build_joined_result "$2" "$_joined" "$_err")"
+    local _build_status=$?
+    if [ "$_build_status" -ne 0 ]; then
+        present_alert "Could not join the transcripts" "$(/usr/bin/head -3 "$_err")"
+        /bin/rm -f "$_joined" "$_err"
+        return 0
+    fi
+    "$SPEECH_BIN" export "$_joined" --format "$1" --output "$_dest" > /dev/null 2> "$_err"
+    local _export_status=$?
+    if [ "$_export_status" -ne 0 ]; then
+        present_alert "Could not export the transcripts" "$(/usr/bin/head -3 "$_err")"
+        /bin/rm -f "$_joined" "$_err"
+        return 0
+    fi
+    /bin/rm -f "$_joined" "$_err"
+    local _what="$_count transcripts"
+    [ "$_count" = 1 ] && _what="1 transcript"
+    set_status "Exported $_what, joined, to $(/usr/bin/basename "$_dest").$(left_out_note "$2" "$_count")"
+}
+
+# Export > a format in the Recordings tab: the selected recording, or with Join on, all of them.
+export_recordings() {   # $1 = format, $2 = pane dir
+    if [ "$(read_state "$2/join")" = 1 ]; then
+        export_joined_transcripts "$1" "$2"
+        return 0
+    fi
+    local _selected="$(read_state "$2/selected.key")"
+    [ -n "$_selected" ] && export_transcript "$1" "$2/items/$_selected"
+    return 0
 }

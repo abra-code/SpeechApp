@@ -385,6 +385,16 @@
                     }
                   },
                   {
+                    "type": "Toggle",
+                    "id": 156,
+                    "properties": {
+                      "title": "Join Transcripts",
+                      "style": "checkbox",
+                      "help": "Export and Copy take the transcripts of all the recordings in the list, one after another, as one",
+                      "actionID": "speech.recordings.join.changed"
+                    }
+                  },
+                  {
                     "type": "Menu",
                     "id": 150,
                     "properties": { "title": "Export", "disabled": true, "frame": { "width": 110 } },

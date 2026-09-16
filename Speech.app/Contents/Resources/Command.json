@@ -229,6 +229,14 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.join.changed",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_VIEW_156_VALUE": ""
+      }
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.benchmark.corpus.changed",
       "EXECUTION_MODE": "exe_script_file",
       "ENVIRONMENT_VARIABLES": {

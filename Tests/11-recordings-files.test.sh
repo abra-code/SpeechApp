@@ -293,6 +293,15 @@ check "and so is the link" "yes" "$([ -L "$link" ] && echo yes || echo no)"
 /bin/rm -f "$link"
 
 # ------------------------------------------------------------------------------------------------
+section "a new window starts with the Join checkbox the way it was last left"
+open_tab
+check "off by default" "absent|" "$([ -f "$(rec_pane)/join" ] && echo present || echo absent)|$(ui_value "$REC_JOIN_TOGGLE")"
+/bin/mkdir -p "$SPEECH_APP_SUPPORT/Settings"
+printf '1' > "$SPEECH_APP_SUPPORT/Settings/recordings.join"
+omc_run speech.window.init
+check "on when it was left on" "present|true" "$([ -f "$(rec_pane)/join" ] && echo present || echo absent)|$(ui_value "$REC_JOIN_TOGGLE")"
+
+# ------------------------------------------------------------------------------------------------
 section "cumulative: the window was only written through ids it declares"
 check "no undeclared ids" "" "$(ui_unknown_writes)"
 check "no table clobbered" "" "$(ui_suspect_writes)"
