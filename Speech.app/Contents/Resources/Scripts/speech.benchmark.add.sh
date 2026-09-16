@@ -18,7 +18,7 @@ sample="$(read_state "$pane/sample")"
 corpus_is_present "$corpus"
 present=$?
 if [ "$present" -ne 0 ]; then
-    set_status "$(corpus_title "$corpus") is not on this Mac yet, so there is nothing to measure with."
+    set_status "$(corpus_title "$corpus") is not on this Mac yet, so there is nothing to measure with. Press Download to get it."
     exit 0
 fi
 

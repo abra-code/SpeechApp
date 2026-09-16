@@ -243,6 +243,16 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.download",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.benchmark.download.confirm",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.benchmark.run",
       "EXECUTION_MODE": "exe_script_file"
     },

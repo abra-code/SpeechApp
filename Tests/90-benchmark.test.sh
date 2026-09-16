@@ -59,18 +59,27 @@ section "With no corpus on this Mac, the tab starts on the first one and says wh
 open_window
 tick
 check "the first corpus is chosen" "cmn_hans_cn" "$(/bin/cat "$(bench_pane)/corpus.id" 2>/dev/null)"
-check "every corpus is offered, none on this Mac" \
-    '["FLEURS Chinese (Mandarin) (not on this Mac)","FLEURS English (US) (not on this Mac)","FLEURS French (not on this Mac)","FLEURS German (not on this Mac)","FLEURS Polish (not on this Mac)","FLEURS Spanish (Latin America) (not on this Mac)","LibriSpeech test-clean (English, clear speech) (not on this Mac)","LibriSpeech test-other (English, harder speech) (not on this Mac)"]' \
-    "$(ui_prop "$BENCH_CORPUS_PICKER" options)"
+corpus_options="$(ui_prop "$BENCH_CORPUS_PICKER" options)"
+check_contains "the corpora with reference results come first, each marked as not on this Mac" \
+    "[\"FLEURS Chinese (Mandarin) $download_mark\",\"FLEURS English (US) $download_mark\",\"FLEURS French $download_mark\",\"FLEURS German $download_mark\",\"FLEURS Polish $download_mark\",\"FLEURS Spanish (Latin America) $download_mark\",\"LibriSpeech test-clean (English, clear speech) $download_mark\",\"LibriSpeech test-other (English, harder speech) $download_mark\"," \
+    "$corpus_options"
+check_contains "and the rest of the FLEURS languages follow, by name" \
+    "\"FLEURS Afrikaans $download_mark\",\"FLEURS Amharic $download_mark\",\"FLEURS Arabic (Egypt) $download_mark\"," \
+    "$corpus_options"
+check "every FLEURS language FLEURS has a test split for is offered" "102" \
+    "$(printf '%s' "$corpus_options" | /usr/bin/grep -o '"FLEURS ' | /usr/bin/grep -c .)"
+check "and both LibriSpeech splits" "2" \
+    "$(printf '%s' "$corpus_options" | /usr/bin/grep -o '"LibriSpeech ' | /usr/bin/grep -c .)"
 check "a quick sample is the default size" "100" "$(/bin/cat "$(bench_pane)/sample" 2>/dev/null)"
 check "the sizes name the corpus's recordings" '["Quick sample (100 recordings)","Full set (945 recordings)"]' "$(ui_prop "$BENCH_SAMPLE_PICKER" options)"
 check "no model here transcribes Chinese" '["No models for this language","Download Models..."]' "$(ui_prop "$BENCH_MODEL_PICKER" options)"
 check "Add is disabled" "0" "$(ui_enabled "$BENCH_ADD_BTN")"
 check "Run is disabled" "0" "$(ui_enabled "$BENCH_RUN_BTN")"
 check "the pickers are enabled" "1 1 1" "$(ui_enabled "$BENCH_CORPUS_PICKER") $(ui_enabled "$BENCH_SAMPLE_PICKER") $(ui_enabled "$BENCH_MODEL_PICKER")"
-check "the status says where Speech looks for it" \
-    "FLEURS Chinese (Mandarin) is not on this Mac yet. Speech looks for it in $SPEECH_APP_SUPPORT/Corpora/fleurs/cmn_hans_cn." \
+check "the status offers the download, with its size" \
+    "FLEURS Chinese (Mandarin) is not on this Mac yet. Press Download to get it (525 MB)." \
     "$(ui_value "$BENCH_STATUS")"
+check "Download is enabled" "1" "$(ui_enabled "$BENCH_DOWNLOAD_BTN")"
 check "the reference has nothing for it" "0" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
 
 section "Choosing Polish offers the models that speak it, and the reference results for it"
@@ -98,6 +107,7 @@ put_polish_corpus
 tick
 check_contains "Polish is on this Mac now" '"FLEURS Polish",' "$(ui_prop "$BENCH_CORPUS_PICKER" options)"
 check "Add is enabled" "1" "$(ui_enabled "$BENCH_ADD_BTN")"
+check "Download is disabled for a corpus on this Mac" "0" "$(ui_enabled "$BENCH_DOWNLOAD_BTN")"
 check "the status says what to do" \
     "Add models to the queue, then press Run. Results from this Mac are listed above the reference results." \
     "$(ui_value "$BENCH_STATUS")"
@@ -245,7 +255,7 @@ omc_run speech.benchmark.add
 omc_run speech.benchmark.run
 check "the worker finished" "yes" "$(worker_done)"
 check "the result carries the note" \
-    "Speech was transcribing in a window during this measurement, so its speed and memory may be worse than this Mac can do." \
+    "Speech was transcribing in a window or downloading a corpus during this measurement, so its speed and memory may be worse than this Mac can do." \
     "$(result_field "$(result_lines)" 28)"
 /bin/rm -rf "$SPEECH_APP_SUPPORT/Sessions/other-window"
 
@@ -269,5 +279,39 @@ check "the crash left the queue" "0" "$(queued_count)"
 check "it is recorded with the signal" "failed|speech ended on signal 6 and did not say why." \
     "$(result_field "$(result_lines)" 27)|$(result_field "$(result_lines)" 28)"
 unset FAKE_SPEECH_EVAL
+
+section "A FLEURS language speech has never measured is offered with its own size"
+choose "$BENCH_CORPUS_PICKER" 9 speech.benchmark.corpus.changed
+check "the ninth corpus is the first FLEURS language by name" "af_za" "$(/bin/cat "$(bench_pane)/corpus.id" 2>/dev/null)"
+check "the full set is its own size" '["Quick sample (100 recordings)","Full set (264 recordings)"]' "$(ui_prop "$BENCH_SAMPLE_PICKER" options)"
+check "the status offers the download, with its size" \
+    "FLEURS Afrikaans is not on this Mac yet. Press Download to get it (156 MB)." \
+    "$(ui_value "$BENCH_STATUS")"
+check "Download is enabled" "1" "$(ui_enabled "$BENCH_DOWNLOAD_BTN")"
+
+# Spanish rather than one of the new languages: this branch turns on the reference file having no row
+# for the corpus, and the fixture reference (en_us and pl_pl) is what the tab reads here. A new FLEURS
+# language would also need a fixture model that speaks it, which would rewrite the language picker's
+# options in 10-recordings for no gain.
+section "A corpus the reference file has no row for says the table is this Mac's alone"
+choose "$BENCH_CORPUS_PICKER" 6 speech.benchmark.corpus.changed
+/bin/mkdir -p "$SPEECH_APP_SUPPORT/Corpora/fleurs/es_419"
+printf 'a.wav\tbuenos dias\tes-419\n' > "$SPEECH_APP_SUPPORT/Corpora/fleurs/es_419/manifest.tsv"
+tick
+check "the corpus is Spanish" "es_419" "$(/bin/cat "$(bench_pane)/corpus.id" 2>/dev/null)"
+check "the reference has no row for it" "0" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
+check "and the status says so" \
+    "Add models to the queue, then press Run. No reference results are published for FLEURS Spanish (Latin America), so the table shows this Mac's measurements alone." \
+    "$(ui_value "$BENCH_STATUS")"
+
+section "With nothing saved, the tab opens on the first corpus that is on this Mac"
+reset_state
+omc_run speech.window.init
+load_window_models
+put_polish_corpus
+bench_call setup_benchmark "$(spool)"
+end_bench_quiet
+check "the fifth corpus, not the first" "pl_pl" "$(/bin/cat "$(bench_pane)/corpus.id" 2>/dev/null)"
+check "and the picker is on it" "5" "$(ui_value "$BENCH_CORPUS_PICKER")"
 
 omctest_end

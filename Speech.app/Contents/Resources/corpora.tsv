@@ -1,12 +1,114 @@
 # The standard corpora the Benchmark tab offers, in picker order. Columns:
-#   id <TAB> title <TAB> language tag <TAB> manifest, relative to Application Support/Speech/Corpora <TAB> recordings in the full set
+#   1 id <TAB> 2 title <TAB> 3 language tag <TAB> 4 manifest, relative to Application Support/Speech/Corpora <TAB> 5 recordings in the full set
+#   6 archive bytes to download <TAB> 7 bytes on disk once unpacked <TAB> 8 speech's fetch tool <TAB> 9 its argument
+#   10 the archive while it downloads, relative to the Corpora directory <TAB> 11 where it comes from and its license
 # The id is the corpus column of speech's published measurements (docs/benchmarks/measurements.tsv), and the manifest path is where
 # speech's tools/fetch-fleurs.sh and tools/fetch-librispeech.sh put a corpus when SPEECH_CORPUS_DIR is that Corpora directory.
-cmn_hans_cn	FLEURS Chinese (Mandarin)	zh-CN	fleurs/cmn_hans_cn/manifest.tsv	945
-en_us	FLEURS English (US)	en-US	fleurs/en_us/manifest.tsv	647
-fr_fr	FLEURS French	fr-FR	fleurs/fr_fr/manifest.tsv	676
-de_de	FLEURS German	de-DE	fleurs/de_de/manifest.tsv	862
-pl_pl	FLEURS Polish	pl-PL	fleurs/pl_pl/manifest.tsv	758
-es_419	FLEURS Spanish (Latin America)	es-419	fleurs/es_419/manifest.tsv	908
-librispeech-test-clean	LibriSpeech test-clean (English, clear speech)	en-US	LibriSpeech/test-clean/manifest.tsv	2620
-librispeech-test-other	LibriSpeech test-other (English, harder speech)	en-US	LibriSpeech/test-other/manifest.tsv	2939
+# Download sizes are the servers' Content-Length and unpacked sizes were measured with du, both on 2026-09-15.
+cmn_hans_cn	FLEURS Chinese (Mandarin)	zh-CN	fleurs/cmn_hans_cn/manifest.tsv	945	525346466	710176768	fetch-fleurs.sh	cmn_hans_cn	fleurs/cmn_hans_cn/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+en_us	FLEURS English (US)	en-US	fleurs/en_us/manifest.tsv	647	289851356	410316800	fetch-fleurs.sh	en_us	fleurs/en_us/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+fr_fr	FLEURS French	fr-FR	fleurs/fr_fr/manifest.tsv	676	349036055	451051520	fetch-fleurs.sh	fr_fr	fleurs/fr_fr/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+de_de	FLEURS German	de-DE	fleurs/de_de/manifest.tsv	862	568734559	728244224	fetch-fleurs.sh	de_de	fleurs/de_de/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+pl_pl	FLEURS Polish	pl-PL	fleurs/pl_pl/manifest.tsv	758	354544776	474185728	fetch-fleurs.sh	pl_pl	fleurs/pl_pl/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+es_419	FLEURS Spanish (Latin America)	es-419	fleurs/es_419/manifest.tsv	908	582112372	714153984	fetch-fleurs.sh	es_419	fleurs/es_419/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+librispeech-test-clean	LibriSpeech test-clean (English, clear speech)	en-US	LibriSpeech/test-clean/manifest.tsv	2620	346663984	373653504	fetch-librispeech.sh	test-clean	LibriSpeech/test-clean.tar.gz	LibriSpeech is published on OpenSLR under the CC BY 4.0 license.
+librispeech-test-other	LibriSpeech test-other (English, harder speech)	en-US	LibriSpeech/test-other/manifest.tsv	2939	328757843	359153664	fetch-librispeech.sh	test-other	LibriSpeech/test-other.tar.gz	LibriSpeech is published on OpenSLR under the CC BY 4.0 license.
+# Every other FLEURS language, by title. speech publishes no reference measurements for these, so the tab shows this Mac's results alone.
+# Their recordings and download sizes are Hugging Face's own numbers, read from the dataset API and header-only requests on 2026-09-15;
+# the unpacked size is the test split byte count plus 3 percent, the margin the six measured rows above needed.
+af_za	FLEURS Afrikaans	af-ZA	fleurs/af_za/manifest.tsv	264	156331424	210574472	fetch-fleurs.sh	af_za	fleurs/af_za/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+am_et	FLEURS Amharic	am-ET	fleurs/am_et/manifest.tsv	516	277608292	379838443	fetch-fleurs.sh	am_et	fleurs/am_et/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ar_eg	FLEURS Arabic (Egypt)	ar-EG	fleurs/ar_eg/manifest.tsv	428	243532527	306209863	fetch-fleurs.sh	ar_eg	fleurs/ar_eg/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+hy_am	FLEURS Armenian	hy-AM	fleurs/hy_am/manifest.tsv	932	518230946	708886864	fetch-fleurs.sh	hy_am	fleurs/hy_am/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+as_in	FLEURS Assamese	as-IN	fleurs/as_in/manifest.tsv	984	656346858	814584123	fetch-fleurs.sh	as_in	fleurs/as_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ast_es	FLEURS Asturian	ast-ES	fleurs/ast_es/manifest.tsv	946	461151662	576519803	fetch-fleurs.sh	ast_es	fleurs/ast_es/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+az_az	FLEURS Azerbaijani	az-AZ	fleurs/az_az/manifest.tsv	923	591560675	766094358	fetch-fleurs.sh	az_az	fleurs/az_az/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+be_by	FLEURS Belarusian	be-BY	fleurs/be_by/manifest.tsv	967	694422377	947641006	fetch-fleurs.sh	be_by	fleurs/be_by/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+bn_in	FLEURS Bengali	bn-IN	fleurs/bn_in/manifest.tsv	920	659700249	814776387	fetch-fleurs.sh	bn_in	fleurs/bn_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+bs_ba	FLEURS Bosnian	bs-BA	fleurs/bs_ba/manifest.tsv	925	539987352	736337134	fetch-fleurs.sh	bs_ba	fleurs/bs_ba/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+bg_bg	FLEURS Bulgarian	bg-BG	fleurs/bg_bg/manifest.tsv	658	340376747	439872541	fetch-fleurs.sh	bg_bg	fleurs/bg_bg/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+my_mm	FLEURS Burmese	my-MM	fleurs/my_mm/manifest.tsv	880	655695557	871070502	fetch-fleurs.sh	my_mm	fleurs/my_mm/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ca_es	FLEURS Catalan	ca-ES	fleurs/ca_es/manifest.tsv	940	572984714	722985222	fetch-fleurs.sh	ca_es	fleurs/ca_es/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ceb_ph	FLEURS Cebuano	ceb-PH	fleurs/ceb_ph/manifest.tsv	541	408532155	524765170	fetch-fleurs.sh	ceb_ph	fleurs/ceb_ph/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ckb_iq	FLEURS Central Kurdish	ckb-IQ	fleurs/ckb_iq/manifest.tsv	922	563835664	710664894	fetch-fleurs.sh	ckb_iq	fleurs/ckb_iq/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+yue_hant_hk	FLEURS Chinese (Cantonese)	yue-HK	fleurs/yue_hant_hk/manifest.tsv	819	478501748	628596706	fetch-fleurs.sh	yue_hant_hk	fleurs/yue_hant_hk/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+hr_hr	FLEURS Croatian	hr-HR	fleurs/hr_hr/manifest.tsv	914	423226240	596943291	fetch-fleurs.sh	hr_hr	fleurs/hr_hr/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+cs_cz	FLEURS Czech	cs-CZ	fleurs/cs_cz/manifest.tsv	723	451208368	577138125	fetch-fleurs.sh	cs_cz	fleurs/cs_cz/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+da_dk	FLEURS Danish	da-DK	fleurs/da_dk/manifest.tsv	930	520839098	680204575	fetch-fleurs.sh	da_dk	fleurs/da_dk/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+nl_nl	FLEURS Dutch	nl-NL	fleurs/nl_nl/manifest.tsv	364	158900753	223366419	fetch-fleurs.sh	nl_nl	fleurs/nl_nl/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+et_ee	FLEURS Estonian	et-EE	fleurs/et_ee/manifest.tsv	893	506753754	703310845	fetch-fleurs.sh	et_ee	fleurs/et_ee/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+fil_ph	FLEURS Filipino	fil-PH	fleurs/fil_ph/manifest.tsv	964	889243315	1135397547	fetch-fleurs.sh	fil_ph	fleurs/fil_ph/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+fi_fi	FLEURS Finnish	fi-FI	fleurs/fi_fi/manifest.tsv	918	565221524	767210963	fetch-fleurs.sh	fi_fi	fleurs/fi_fi/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ff_sn	FLEURS Fulah	ff-SN	fleurs/ff_sn/manifest.tsv	660	436271003	609706710	fetch-fleurs.sh	ff_sn	fleurs/ff_sn/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+gl_es	FLEURS Galician	gl-ES	fleurs/gl_es/manifest.tsv	927	479607545	617726806	fetch-fleurs.sh	gl_es	fleurs/gl_es/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+lg_ug	FLEURS Ganda	lg-UG	fleurs/lg_ug/manifest.tsv	723	596197840	803492517	fetch-fleurs.sh	lg_ug	fleurs/lg_ug/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ka_ge	FLEURS Georgian	ka-GE	fleurs/ka_ge/manifest.tsv	979	509011884	717516578	fetch-fleurs.sh	ka_ge	fleurs/ka_ge/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+el_gr	FLEURS Greek	el-GR	fleurs/el_gr/manifest.tsv	650	348820912	451322720	fetch-fleurs.sh	el_gr	fleurs/el_gr/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+gu_in	FLEURS Gujarati	gu-IN	fleurs/gu_in/manifest.tsv	1000	550848306	691995735	fetch-fleurs.sh	gu_in	fleurs/gu_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ha_ng	FLEURS Hausa	ha-NG	fleurs/ha_ng/manifest.tsv	621	602186873	792718732	fetch-fleurs.sh	ha_ng	fleurs/ha_ng/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+he_il	FLEURS Hebrew	he-IL	fleurs/he_il/manifest.tsv	792	386970225	484393081	fetch-fleurs.sh	he_il	fleurs/he_il/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+hi_in	FLEURS Hindi	hi-IN	fleurs/hi_in/manifest.tsv	418	249331325	315080470	fetch-fleurs.sh	hi_in	fleurs/hi_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+hu_hu	FLEURS Hungarian	hu-HU	fleurs/hu_hu/manifest.tsv	905	542250479	716745279	fetch-fleurs.sh	hu_hu	fleurs/hu_hu/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+is_is	FLEURS Icelandic	is-IS	fleurs/is_is/manifest.tsv	46	32531300	42470915	fetch-fleurs.sh	is_is	fleurs/is_is/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ig_ng	FLEURS Igbo	ig-NG	fleurs/ig_ng/manifest.tsv	969	793270844	1093684853	fetch-fleurs.sh	ig_ng	fleurs/ig_ng/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+id_id	FLEURS Indonesian	id-ID	fleurs/id_id/manifest.tsv	687	451704157	559143607	fetch-fleurs.sh	id_id	fleurs/id_id/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ga_ie	FLEURS Irish	ga-IE	fleurs/ga_ie/manifest.tsv	842	572220022	801723665	fetch-fleurs.sh	ga_ie	fleurs/ga_ie/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+it_it	FLEURS Italian	it-IT	fleurs/it_it/manifest.tsv	865	657731057	830630146	fetch-fleurs.sh	it_it	fleurs/it_it/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ja_jp	FLEURS Japanese	ja-JP	fleurs/ja_jp/manifest.tsv	650	448762391	557901261	fetch-fleurs.sh	ja_jp	fleurs/ja_jp/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+jv_id	FLEURS Javanese	jv-ID	fleurs/jv_id/manifest.tsv	728	539756503	666747419	fetch-fleurs.sh	jv_id	fleurs/jv_id/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+kea_cv	FLEURS Kabuverdianu	kea-CV	fleurs/kea_cv/manifest.tsv	864	605798471	770025429	fetch-fleurs.sh	kea_cv	fleurs/kea_cv/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+kam_ke	FLEURS Kamba	kam-KE	fleurs/kam_ke/manifest.tsv	827	728364215	881226342	fetch-fleurs.sh	kam_ke	fleurs/kam_ke/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+kn_in	FLEURS Kannada	kn-IN	fleurs/kn_in/manifest.tsv	838	615231116	752987167	fetch-fleurs.sh	kn_in	fleurs/kn_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+kk_kz	FLEURS Kazakh	kk-KZ	fleurs/kk_kz/manifest.tsv	856	628328020	884552727	fetch-fleurs.sh	kk_kz	fleurs/kk_kz/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+km_kh	FLEURS Khmer	km-KH	fleurs/km_kh/manifest.tsv	771	571702566	739622173	fetch-fleurs.sh	km_kh	fleurs/km_kh/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ko_kr	FLEURS Korean	ko-KR	fleurs/ko_kr/manifest.tsv	382	214425558	299894661	fetch-fleurs.sh	ko_kr	fleurs/ko_kr/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ky_kg	FLEURS Kyrgyz	ky-KG	fleurs/ky_kg/manifest.tsv	977	530691968	747839424	fetch-fleurs.sh	ky_kg	fleurs/ky_kg/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+lo_la	FLEURS Lao	lo-LA	fleurs/lo_la/manifest.tsv	405	252993421	333903206	fetch-fleurs.sh	lo_la	fleurs/lo_la/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+lv_lv	FLEURS Latvian	lv-LV	fleurs/lv_lv/manifest.tsv	851	498353648	657730760	fetch-fleurs.sh	lv_lv	fleurs/lv_lv/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ln_cd	FLEURS Lingala	ln-CD	fleurs/ln_cd/manifest.tsv	478	481475396	612663748	fetch-fleurs.sh	ln_cd	fleurs/ln_cd/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+lt_lt	FLEURS Lithuanian	lt-LT	fleurs/lt_lt/manifest.tsv	986	541779652	697745551	fetch-fleurs.sh	lt_lt	fleurs/lt_lt/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+luo_ke	FLEURS Luo	luo-KE	fleurs/luo_ke/manifest.tsv	256	186204079	231307353	fetch-fleurs.sh	luo_ke	fleurs/luo_ke/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+lb_lu	FLEURS Luxembourgish	lb-LU	fleurs/lb_lu/manifest.tsv	934	473145314	634023085	fetch-fleurs.sh	lb_lu	fleurs/lb_lu/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+mk_mk	FLEURS Macedonian	mk-MK	fleurs/mk_mk/manifest.tsv	973	539145660	750504310	fetch-fleurs.sh	mk_mk	fleurs/mk_mk/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ms_my	FLEURS Malay	ms-MY	fleurs/ms_my/manifest.tsv	749	430823061	537430419	fetch-fleurs.sh	ms_my	fleurs/ms_my/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ml_in	FLEURS Malayalam	ml-IN	fleurs/ml_in/manifest.tsv	958	721760708	926457519	fetch-fleurs.sh	ml_in	fleurs/ml_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+mt_mt	FLEURS Maltese	mt-MT	fleurs/mt_mt/manifest.tsv	926	611254780	821088919	fetch-fleurs.sh	mt_mt	fleurs/mt_mt/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+mi_nz	FLEURS Maori	mi-NZ	fleurs/mi_nz/manifest.tsv	1008	1040054529	1379804908	fetch-fleurs.sh	mi_nz	fleurs/mi_nz/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+mr_in	FLEURS Marathi	mr-IN	fleurs/mr_in/manifest.tsv	1015	719656565	913972684	fetch-fleurs.sh	mr_in	fleurs/mr_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+mn_mn	FLEURS Mongolian	mn-MN	fleurs/mn_mn/manifest.tsv	949	506292829	674298709	fetch-fleurs.sh	mn_mn	fleurs/mn_mn/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ne_np	FLEURS Nepali	ne-NP	fleurs/ne_np/manifest.tsv	726	439683126	541773884	fetch-fleurs.sh	ne_np	fleurs/ne_np/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+nso_za	FLEURS Northern Sotho	nso-ZA	fleurs/nso_za/manifest.tsv	790	813992649	994384931	fetch-fleurs.sh	nso_za	fleurs/nso_za/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+nb_no	FLEURS Norwegian Bokmal	nb-NO	fleurs/nb_no/manifest.tsv	357	232953239	295683260	fetch-fleurs.sh	nb_no	fleurs/nb_no/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ny_mw	FLEURS Nyanja	ny-MW	fleurs/ny_mw/manifest.tsv	761	618572780	834599443	fetch-fleurs.sh	ny_mw	fleurs/ny_mw/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+oc_fr	FLEURS Occitan	oc-FR	fleurs/oc_fr/manifest.tsv	998	836716138	1051592574	fetch-fleurs.sh	oc_fr	fleurs/oc_fr/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+or_in	FLEURS Odia	or-IN	fleurs/or_in/manifest.tsv	883	549772551	700229696	fetch-fleurs.sh	or_in	fleurs/or_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+om_et	FLEURS Oromo	om-ET	fleurs/om_et/manifest.tsv	41	24572697	30869109	fetch-fleurs.sh	om_et	fleurs/om_et/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ps_af	FLEURS Pashto	ps-AF	fleurs/ps_af/manifest.tsv	512	303903990	414466600	fetch-fleurs.sh	ps_af	fleurs/ps_af/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+fa_ir	FLEURS Persian	fa-IR	fleurs/fa_ir/manifest.tsv	871	657317725	869512540	fetch-fleurs.sh	fa_ir	fleurs/fa_ir/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+pt_br	FLEURS Portuguese (Brazil)	pt-BR	fleurs/pt_br/manifest.tsv	919	621291324	764019032	fetch-fleurs.sh	pt_br	fleurs/pt_br/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+pa_in	FLEURS Punjabi	pa-IN	fleurs/pa_in/manifest.tsv	574	357040876	432388475	fetch-fleurs.sh	pa_in	fleurs/pa_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ro_ro	FLEURS Romanian	ro-RO	fleurs/ro_ro/manifest.tsv	883	494780654	600042133	fetch-fleurs.sh	ro_ro	fleurs/ro_ro/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ru_ru	FLEURS Russian	ru-RU	fleurs/ru_ru/manifest.tsv	775	433142634	581651878	fetch-fleurs.sh	ru_ru	fleurs/ru_ru/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+sr_rs	FLEURS Serbian	sr-RS	fleurs/sr_rs/manifest.tsv	700	384486100	501316838	fetch-fleurs.sh	sr_rs	fleurs/sr_rs/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+sn_zw	FLEURS Shona	sn-ZW	fleurs/sn_zw/manifest.tsv	925	609718779	875980781	fetch-fleurs.sh	sn_zw	fleurs/sn_zw/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+sd_in	FLEURS Sindhi	sd-IN	fleurs/sd_in/manifest.tsv	980	621842598	781521400	fetch-fleurs.sh	sd_in	fleurs/sd_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+sk_sk	FLEURS Slovak	sk-SK	fleurs/sk_sk/manifest.tsv	792	450050397	602841622	fetch-fleurs.sh	sk_sk	fleurs/sk_sk/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+sl_si	FLEURS Slovenian	sl-SI	fleurs/sl_si/manifest.tsv	834	385059821	534607696	fetch-fleurs.sh	sl_si	fleurs/sl_si/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+so_so	FLEURS Somali	so-SO	fleurs/so_so/manifest.tsv	1019	736569254	927941111	fetch-fleurs.sh	so_so	fleurs/so_so/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+sw_ke	FLEURS Swahili	sw-KE	fleurs/sw_ke/manifest.tsv	487	333019109	453941231	fetch-fleurs.sh	sw_ke	fleurs/sw_ke/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+sv_se	FLEURS Swedish	sv-SE	fleurs/sv_se/manifest.tsv	759	440702047	553863787	fetch-fleurs.sh	sv_se	fleurs/sv_se/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+tg_tj	FLEURS Tajik	tg-TJ	fleurs/tg_tj/manifest.tsv	600	398410068	564559925	fetch-fleurs.sh	tg_tj	fleurs/tg_tj/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ta_in	FLEURS Tamil	ta-IN	fleurs/ta_in/manifest.tsv	591	406616353	503915005	fetch-fleurs.sh	ta_in	fleurs/ta_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+te_in	FLEURS Telugu	te-IN	fleurs/te_in/manifest.tsv	472	270257144	341672265	fetch-fleurs.sh	te_in	fleurs/te_in/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+th_th	FLEURS Thai	th-TH	fleurs/th_th/manifest.tsv	1021	593463305	808249035	fetch-fleurs.sh	th_th	fleurs/th_th/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+tr_tr	FLEURS Turkish	tr-TR	fleurs/tr_tr/manifest.tsv	743	464259241	607602612	fetch-fleurs.sh	tr_tr	fleurs/tr_tr/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+uk_ua	FLEURS Ukrainian	uk-UA	fleurs/uk_ua/manifest.tsv	750	399073340	525853030	fetch-fleurs.sh	uk_ua	fleurs/uk_ua/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+umb_ao	FLEURS Umbundu	umb-AO	fleurs/umb_ao/manifest.tsv	379	514159861	644951367	fetch-fleurs.sh	umb_ao	fleurs/umb_ao/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+ur_pk	FLEURS Urdu	ur-PK	fleurs/ur_pk/manifest.tsv	299	149549883	193384954	fetch-fleurs.sh	ur_pk	fleurs/ur_pk/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+uz_uz	FLEURS Uzbek	uz-UZ	fleurs/uz_uz/manifest.tsv	862	519354861	672416425	fetch-fleurs.sh	uz_uz	fleurs/uz_uz/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+vi_vn	FLEURS Vietnamese	vi-VN	fleurs/vi_vn/manifest.tsv	857	544139865	711862589	fetch-fleurs.sh	vi_vn	fleurs/vi_vn/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+cy_gb	FLEURS Welsh	cy-GB	fleurs/cy_gb/manifest.tsv	1021	764260631	1013105117	fetch-fleurs.sh	cy_gb	fleurs/cy_gb/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+wo_sn	FLEURS Wolof	wo-SN	fleurs/wo_sn/manifest.tsv	371	285754533	408144857	fetch-fleurs.sh	wo_sn	fleurs/wo_sn/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+xh_za	FLEURS Xhosa	xh-ZA	fleurs/xh_za/manifest.tsv	1041	557441878	869443643	fetch-fleurs.sh	xh_za	fleurs/xh_za/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+yo_ng	FLEURS Yoruba	yo-NG	fleurs/yo_ng/manifest.tsv	831	692401948	893081483	fetch-fleurs.sh	yo_ng	fleurs/yo_ng/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.
+zu_za	FLEURS Zulu	zu-ZA	fleurs/zu_za/manifest.tsv	854	675647553	916396421	fetch-fleurs.sh	zu_za	fleurs/zu_za/test.tar.gz	FLEURS is published by Google on Hugging Face under the CC BY 4.0 license.

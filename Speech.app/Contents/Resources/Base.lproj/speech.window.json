@@ -366,6 +366,17 @@
                       "frame": { "minWidth": 200, "idealWidth": 240 }
                     }
                   },
+                  {
+                    "type": "Button",
+                    "id": 444,
+                    "properties": {
+                      "title": "Download",
+                      "systemImage": "arrow.down.circle",
+                      "buttonStyle": "bordered",
+                      "disabled": true,
+                      "actionID": "speech.benchmark.download"
+                    }
+                  },
                   { "type": "Spacer" }
                 ]
               },

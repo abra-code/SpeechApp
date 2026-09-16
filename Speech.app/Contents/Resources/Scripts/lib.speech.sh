@@ -34,7 +34,7 @@ NL="
 # Two environment namespaces share the SPEECH_ prefix and must not be treated as one set. The
 # ones read here (SPEECH_BIN, SPEECH_FINGERPRINT_BIN, SPEECH_POLL_SCRIPT,
 # SPEECH_MODELS_POLL_SCRIPT, SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT, SPEECH_RECORDINGS_DIR,
-# SPEECH_REFERENCE_MEASUREMENTS) are this applet's test hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the
+# SPEECH_REFERENCE_MEASUREMENTS, SPEECH_FETCH_TOOLS_DIR) are this applet's test hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the
 # speech binary's own production configuration.
 SPEECH_BIN="${SPEECH_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech}"
 FINGERPRINT_BIN="${SPEECH_FINGERPRINT_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/fingerprint}"
@@ -61,6 +61,11 @@ CORPORA_DIR="$APP_SUPPORT/Corpora"
 REFERENCE_MEASUREMENTS="${SPEECH_REFERENCE_MEASUREMENTS:-$RESOURCES_DIR/Reference/measurements.tsv}"
 BENCHMARKS_DIR="$APP_SUPPORT/Benchmarks"
 BENCHMARK_WORKER_SCRIPT="$SCRIPTS_DIR/speech.benchmark.worker.sh"
+# A standard corpus is downloaded by speech's own fetch tools, copied into the bundle by
+# update_speech.sh, under a worker of its own; a test points the tools at fakes.
+FETCH_TOOLS_DIR="${SPEECH_FETCH_TOOLS_DIR:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech-tools}"
+CORPUS_WORKER_SCRIPT="$SCRIPTS_DIR/speech.corpus.download.worker.sh"
+CORPUS_DOWNLOADS_DIR="$APP_SUPPORT/CorpusDownloads"
 
 # The speech binary's model store and user catalog, exported so every speech process this applet
 # starts lands in the applet's store without each call site passing --models-dir. The CLI's own
@@ -105,6 +110,7 @@ BENCH_MODEL_PICKER=427
 BENCH_RUN_BTN=440
 BENCH_STOP_BTN=441
 BENCH_ADD_BTN=443
+BENCH_DOWNLOAD_BTN=444
 BENCH_RESULTS_TABLE=460
 BENCH_QUEUE_TABLE=470
 BENCH_REMOVE_BTN=471

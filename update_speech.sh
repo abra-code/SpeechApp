@@ -13,6 +13,8 @@
 #   Contents/Support/*.LICENSE, *NOTICES*     the notices that must travel with those binaries
 #   Contents/Resources/Reference/             the published measurements and the model family
 #                                             pages, shown before this Mac has measured anything
+#   Contents/Support/speech-tools/            tools/fetch-fleurs.sh and tools/fetch-librispeech.sh,
+#                                             which the Benchmark tab runs to download a corpus
 # and from the replay repository:
 #   Contents/Support/fingerprint              the file fingerprint tool, which tells a transcript
 #                                             Speech saved and nobody touched from one it must not
@@ -226,6 +228,22 @@ done
 [ "$page_count" -gt 0 ] || fail "No model family pages in $FAMILY_PAGES_SRC"
 replace_dir "$REFERENCE_STAGE/Reference" "$REFERENCE_DIR"
 echo "  ${GREEN}Deployed${RESET} reference measurements + $page_count family pages"
+
+# speech's corpus fetch tools. The app runs them with /bin/sh, so they are copied as plain files
+# without the execute bit, and checked for syntax here rather than at the user's first Download.
+/bin/mkdir -p "$REFERENCE_STAGE/speech-tools"
+for tool in fetch-fleurs.sh fetch-librispeech.sh; do
+    [ -s "$SPEECH_REPO/tools/$tool" ] || fail "No $SPEECH_REPO/tools/$tool - the Benchmark tab downloads corpora with it"
+    /bin/sh -n "$SPEECH_REPO/tools/$tool"
+    syntax_status=$?
+    [ "$syntax_status" -eq 0 ] || fail "$SPEECH_REPO/tools/$tool does not parse with /bin/sh -n"
+    /bin/cp -f "$SPEECH_REPO/tools/$tool" "$REFERENCE_STAGE/speech-tools/$tool"
+    copy_status=$?
+    [ "$copy_status" -eq 0 ] || fail "Could not stage $tool"
+    /bin/chmod 644 "$REFERENCE_STAGE/speech-tools/$tool"
+done
+replace_dir "$REFERENCE_STAGE/speech-tools" "$SUPPORT_DIR/speech-tools"
+echo "  ${GREEN}Deployed${RESET} corpus fetch tools"
 
 # Finder droppings are unsealed content as far as codesign is concerned.
 /usr/bin/find "$SUPPORT_DIR" "$REFERENCE_DIR" -name ".DS_Store" -delete

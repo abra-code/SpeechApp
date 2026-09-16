@@ -22,6 +22,10 @@ FAKE_SPEECH_LOG="$OMCTEST_WORK/fake-speech.log"
 SPEECH_TEST_RECORD_DIR="$OMCTEST_WORK"
 # A small reference file instead of the published measurements, whose rows change with every battery.
 SPEECH_REFERENCE_MEASUREMENTS="$OMCTEST_FIXTURES/reference.tsv"
+# Fake corpus fetch tools, which write a manifest instead of downloading hundreds of megabytes.
+SPEECH_FETCH_TOOLS_DIR="$OMCTEST_TESTS/helpers/fetch-tools"
+FAKE_FETCH_LOG="$OMCTEST_WORK/fake-fetch.log"
+export SPEECH_FETCH_TOOLS_DIR FAKE_FETCH_LOG
 # The language picker falls back to the locale's language; pin it so the suite does not depend
 # on the machine it runs on.
 LANG="en_US.UTF-8"
@@ -36,8 +40,10 @@ if [ ! -x "$OMCTEST_APP/Contents/Support/fingerprint" ]; then
     exit 1
 fi
 
-# The squared letters the applet appends to model labels: M (U+1F13C) MLX, G (U+1F136) ggml,
-# F (U+1F135) FluidAudio. Apple's labels get none.
+# The marks the applet appends, written as bytes so this file stays ASCII. An arrow to a bar
+# (U+2913) on a corpus that is not on this Mac, and the squared letters on model labels:
+# M (U+1F13C) MLX, G (U+1F136) ggml, F (U+1F135) FluidAudio. Apple's labels get none.
+download_mark="$(printf '\342\244\223')"
 mlx_mark="$(printf '\360\237\204\274')"
 ggml_mark="$(printf '\360\237\204\266')"
 fluid_mark="$(printf '\360\237\204\265')"

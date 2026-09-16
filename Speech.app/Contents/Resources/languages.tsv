@@ -1,8 +1,10 @@
-# code	English name. Primary subtags as the speech catalog reports them (Whisper's "jw" as well as ISO "jv").
+# code	English name. Primary subtags as the speech catalog reports them (Whisper's "jw" as well as ISO "jv"),
+# and the FLEURS languages no model in the catalog lists, so a corpus in one still has a name to show.
 af	Afrikaans
 am	Amharic
 ar	Arabic
 as	Assamese
+ast	Asturian
 az	Azerbaijani
 ba	Bashkir
 be	Belarusian
@@ -12,6 +14,8 @@ bo	Tibetan
 br	Breton
 bs	Bosnian
 ca	Catalan
+ceb	Cebuano
+ckb	Central Kurdish
 cs	Czech
 cy	Welsh
 da	Danish
@@ -22,10 +26,12 @@ es	Spanish
 et	Estonian
 eu	Basque
 fa	Persian
+ff	Fulah
 fi	Finnish
 fil	Filipino
 fo	Faroese
 fr	French
+ga	Irish
 gl	Galician
 gu	Gujarati
 ha	Hausa
@@ -37,21 +43,27 @@ ht	Haitian Creole
 hu	Hungarian
 hy	Armenian
 id	Indonesian
+ig	Igbo
 is	Icelandic
 it	Italian
 ja	Japanese
 jv	Javanese
 jw	Javanese
 ka	Georgian
+kam	Kamba
+kea	Kabuverdianu
 kk	Kazakh
 km	Khmer
 kn	Kannada
 ko	Korean
+ky	Kyrgyz
 la	Latin
 lb	Luxembourgish
+lg	Ganda
 ln	Lingala
 lo	Lao
 lt	Lithuanian
+luo	Luo
 lv	Latvian
 mg	Malagasy
 mi	Maori
@@ -67,7 +79,11 @@ ne	Nepali
 nl	Dutch
 nn	Norwegian Nynorsk
 no	Norwegian
+nso	Northern Sotho
+ny	Nyanja
 oc	Occitan
+om	Oromo
+or	Odia
 pa	Punjabi
 pl	Polish
 ps	Pashto
@@ -95,10 +111,14 @@ tl	Tagalog
 tr	Turkish
 tt	Tatar
 uk	Ukrainian
+umb	Umbundu
 ur	Urdu
 uz	Uzbek
 vi	Vietnamese
+wo	Wolof
+xh	Xhosa
 yi	Yiddish
 yo	Yoruba
 yue	Cantonese
 zh	Chinese
+zu	Zulu

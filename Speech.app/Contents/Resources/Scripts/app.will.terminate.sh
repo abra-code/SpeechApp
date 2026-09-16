@@ -12,10 +12,14 @@
 #
 # So is the benchmark worker: it keeps the measurement in progress in the queue and ends, and the
 # next Run measures it again.
+#
+# So is a corpus's download worker: it stops speech's fetch tool and the curl or tar under it, and
+# the partial archive lets the next Download resume.
 /bin/ps -axo pid=,args= 2>/dev/null | while read -r pid args; do
     case "$args" in
         "$SPEECH_BIN"|"$SPEECH_BIN "*) /bin/kill -TERM "$pid" 2>/dev/null ;;
         "/bin/sh $BENCHMARK_WORKER_SCRIPT"|"/bin/sh $BENCHMARK_WORKER_SCRIPT "*) /bin/kill -TERM "$pid" 2>/dev/null ;;
+        "/bin/sh $CORPUS_WORKER_SCRIPT "*) /bin/kill -TERM "$pid" 2>/dev/null ;;
         "/bin/sh $POLL_SCRIPT "*) /bin/kill -TERM "$pid" 2>/dev/null ;;
         "/bin/sh $MODELS_POLL_SCRIPT "*) /bin/kill -TERM "$pid" 2>/dev/null ;;
     esac

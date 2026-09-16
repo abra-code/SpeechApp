@@ -16,6 +16,12 @@
 #                        speech.pid, stop.request, worker.log
 #   runs/<name>/         the measurement in progress, or one that failed: events.jsonl, stderr.log,
 #                        report/ (speech's summary.json), total, contended
+# Shared by every window, under CORPUS_DOWNLOADS_DIR:
+#   <corpus id>/         one corpus's download: worker.pid, fetch.pid (speech's fetch tool),
+#                        fetch.log and fetch.err (its output and its messages), state (running |
+#                        failed), message (why it failed), archive.seen (the archive has appeared, so
+#                        its going means the unpacking is over). A download that finished or was
+#                        stopped leaves no directory.
 # A window's own, under Sessions/<window>/benchmark:
 #   corpus.id, sample, model.id, models.tsv   the tab's choices, and the models it offers for the
 #                                             corpus's language
@@ -49,16 +55,255 @@ corpus_is_present() {   # $1 = corpus id
     [ -s "$CORPORA_DIR/$_relative" ]
 }
 
-# Which corpora are on this Mac, as one word, so the poller notices one arriving.
-corpora_signature() {
-    local _signature=""
-    local _id _present
-    for _id in $(corpus_ids); do
-        corpus_is_present "$_id"
-        _present=$?
-        _signature="$_signature$_present"
+# Returns 0 when speech publishes reference measurements for this corpus. Only the corpora measured
+# for the published battery have them; the rest of the FLEURS languages are offered all the same, and
+# their table holds this Mac's own results alone.
+corpus_has_reference() {   # $1 = corpus id
+    [ -n "$1" ] || return 1
+    local _found="$(/usr/bin/awk -F'\t' -v id="$1" '!/^#/ && $2 == id { print "yes"; exit }' "$REFERENCE_MEASUREMENTS" 2>/dev/null)"
+    [ -n "$_found" ]
+}
+
+# One pass over corpora.tsv (speech.corpora.awk): which corpora are here, where the chosen one sits
+# in the picker, and the picker's options. The table has a row for every FLEURS language, so the
+# per-row corpus_field this used to do would be a hundred awk processes every half second.
+corpora_scan() {   # $1 = the chosen corpus id, $2 = the ids downloading, space surrounded
+    /usr/bin/awk -f "$SCRIPTS_DIR/speech.corpora.awk" -v dir="$CORPORA_DIR" \
+        -v selected="$1" -v downloading="$2" "$CORPORA_TSV" 2>/dev/null
+}
+
+# The corpora downloading right now, each id surrounded by spaces, empty when none is. A corpus has a
+# directory here only while its download is unfinished or has failed, so this usually reads nothing.
+downloading_corpus_ids() {
+    local _ids=" "
+    local _dir _alive _id
+    for _dir in "$CORPUS_DOWNLOADS_DIR"/*; do
+        [ -f "$_dir/worker.pid" ] || continue
+        _id="${_dir##*/}"
+        corpus_download_alive "$_id"
+        _alive=$?
+        [ "$_alive" -eq 0 ] && _ids="$_ids$_id "
     done
-    printf '%s' "$_signature"
+    printf '%s' "$_ids"
+}
+
+# Which corpora are on this Mac, one letter each, and which are downloading, so the poller notices one
+# arriving or starting to download.
+corpora_signature() {
+    local _downloading="$(downloading_corpus_ids)"
+    local _marks="$(corpora_scan "" "$_downloading" | /usr/bin/sed -n 1p)"
+    printf '%s%s' "$_marks" "$_downloading"
+}
+
+# A size as the Models window writes one: "355 MB", "1.2 GB".
+format_size() {   # $1 = bytes
+    /usr/bin/awk -v b="$1" 'BEGIN { if (b >= 1e9) printf "%.1f GB", b / 1e9; else printf "%.0f MB", b / 1e6 }'
+}
+
+# --- downloading a corpus ------------------------------------------------------------------------
+# Download runs speech's own fetch tool for the corpus (column 8 of corpora.tsv) under a detached
+# worker, speech.corpus.download.worker.sh, with SPEECH_CORPUS_DIR set to the Corpora directory, so
+# the corpus lands where the tab looks for it and there is one implementation of fetching, checking
+# and unpacking. The whole archive is fetched even for a quick sample: FLEURS and OpenSLR publish one
+# archive per split, and the tools resume an interrupted download from the bytes already on disk.
+# There is no Stop, as for a model's download; quitting stops it and Download resumes it.
+
+corpus_download_dir() { printf '%s/%s' "$CORPUS_DOWNLOADS_DIR" "$1"; }   # $1 = corpus id
+
+# Returns 0 while the corpus's download worker runs, judged by its argv, so a recycled pid is never
+# taken for a download in progress.
+corpus_download_alive() {   # $1 = corpus id
+    [ -n "$1" ] || return 1
+    local _pid_file="$(corpus_download_dir "$1")/worker.pid"
+    [ -f "$_pid_file" ] || return 1
+    local _pid="$(read_state "$_pid_file")"
+    case "$_pid" in ''|*[!0-9]*) return 1 ;; esac
+    local _args="$(/bin/ps -p "$_pid" -o args= 2>/dev/null)"
+    case "$_args" in
+        "/bin/sh $CORPUS_WORKER_SCRIPT $1 "*) return 0 ;;
+    esac
+    return 1
+}
+
+# Returns 0 while any corpus downloads.
+any_corpus_download_alive() {
+    local _dir _alive
+    for _dir in "$CORPUS_DOWNLOADS_DIR"/*; do
+        [ -f "$_dir/worker.pid" ] || continue
+        corpus_download_alive "${_dir##*/}"
+        _alive=$?
+        [ "$_alive" -eq 0 ] && return 0
+    done
+    return 1
+}
+
+# Why a corpus's last download failed; empty unless it did and nothing is downloading it now.
+corpus_download_failure() {   # $1 = corpus id
+    local _dir="$(corpus_download_dir "$1")"
+    [ -f "$_dir/state" ] || return 0
+    [ "$(read_state "$_dir/state")" = failed ] || return 0
+    read_state "$_dir/message"
+}
+
+# Bytes free on the volume that holds the Corpora directory; empty when df cannot say.
+corpora_free_bytes() {
+    /bin/mkdir -p "$CORPORA_DIR" 2>/dev/null
+    /bin/df -Pk "$CORPORA_DIR" 2>/dev/null | /usr/bin/awk 'NR == 2 && $4 ~ /^[0-9]+$/ { printf "%.0f", $4 * 1024 }'
+}
+
+# Why a corpus cannot be downloaded now; empty when it can. The archive and its unpacked audio are on
+# disk together until the tool deletes the archive, less whatever part of the archive is already here.
+corpus_download_refusal() {   # $1 = corpus id, $2 = free bytes (empty: not checked)
+    local _title="$(corpus_title "$1")"
+    corpus_is_present "$1"
+    local _present=$?
+    if [ "$_present" -eq 0 ]; then
+        printf '%s is already on this Mac.' "$_title"
+        return 0
+    fi
+    corpus_download_alive "$1"
+    local _alive=$?
+    if [ "$_alive" -eq 0 ]; then
+        printf '%s is already downloading.' "$_title"
+        return 0
+    fi
+    case "$2" in ''|*[!0-9]*) return 0 ;; esac
+    local _archive_bytes="$(corpus_field "$1" 6)"
+    local _unpacked_bytes="$(corpus_field "$1" 7)"
+    local _have="$(/usr/bin/stat -f %z "$CORPORA_DIR/$(corpus_field "$1" 10)" 2>/dev/null)"
+    local _need=$(( ${_archive_bytes:-0} - ${_have:-0} + ${_unpacked_bytes:-0} ))
+    [ "$_need" -gt "$2" ] || return 0
+    printf '%s needs about %s free while it downloads and unpacks, and this Mac has %s free.' \
+        "$_title" "$(format_size "$_need")" "$(format_size "$2")"
+}
+
+# The question the Download alert asks: the sizes, why the whole set comes even for a quick sample,
+# and where the corpus comes from under which license.
+corpus_download_question() {   # $1 = corpus id
+    printf 'About %s to download, and %s on this Mac once unpacked. The full set is downloaded even for a quick sample, because it is published as one archive. %s' \
+        "$(format_size "$(corpus_field "$1" 6)")" "$(format_size "$(corpus_field "$1" 7)")" "$(corpus_field "$1" 11)"
+}
+
+# Start the corpus's download worker, detached, unless one is running. Returns non-zero when it
+# cannot start.
+start_corpus_download() {   # $1 = corpus id
+    local _dir="$(corpus_download_dir "$1")"
+    /bin/mkdir -p "$_dir" 2>/dev/null
+    local _mkdir_status=$?
+    [ "$_mkdir_status" -eq 0 ] || return 1
+    /bin/mkdir "$_dir/dispatch.lock" 2>/dev/null
+    local _lock_status=$?
+    [ "$_lock_status" -eq 0 ] || return 0
+    corpus_download_alive "$1"
+    local _alive=$?
+    if [ "$_alive" -ne 0 ]; then
+        /bin/rm -f "$_dir/state" "$_dir/message" "$_dir/fetch.log" "$_dir/fetch.err" "$_dir/fetch.pid" "$_dir/worker.pid" "$_dir/archive.seen"
+        write_state "$_dir/state" running
+        /bin/sh "$CORPUS_WORKER_SCRIPT" "$1" "$_dir" < /dev/null > /dev/null 2>&1 &
+        write_state "$_dir/worker.pid" "$!"
+    fi
+    /bin/rmdir "$_dir/dispatch.lock" 2>/dev/null
+    return 0
+}
+
+# End a fetch tool and the process it is waiting for (curl or tar). The tool is judged by its argv;
+# its children are taken from the same moment's process list before it is signaled, since once it is
+# gone they belong to no one and would go on downloading. Each child is signaled only while its argv
+# is still what that list showed, so a pid it gave up in the meantime is not taken for it.
+stop_fetch_tool() {   # $1 = tool pid, $2 = tool file name
+    case "$1" in ''|*[!0-9]*) return 1 ;; esac
+    local _args="$(/bin/ps -p "$1" -o args= 2>/dev/null)"
+    case "$_args" in
+        "/bin/sh $FETCH_TOOLS_DIR/$2 "*) ;;
+        *) return 1 ;;
+    esac
+    local _children="$(/bin/ps -axo pid=,ppid=,args= 2>/dev/null | /usr/bin/awk -v parent="$1" '$2 == parent')"
+    /bin/kill -TERM "$1" 2>/dev/null
+    local _child _parent _child_args _now
+    printf '%s\n' "$_children" | while read -r _child _parent _child_args; do
+        case "$_child" in ''|*[!0-9]*) continue ;; esac
+        _now="$(/bin/ps -p "$_child" -o args= 2>/dev/null)"
+        [ "$_now" = "$_child_args" ] || continue
+        /bin/kill -TERM "$_child" 2>/dev/null
+    done
+    return 0
+}
+
+# Why a fetch tool failed, from its messages: the last "-- what went wrong" line and the indented
+# line after it that says what to do. curl's exit status, which the tools quote, is put in words for
+# the failures a user can do something about.
+fetch_error_message() {   # $1 = download dir, $2 = the tool's exit status
+    local _message="$(/usr/bin/tr '\r' '\n' < "$1/fetch.err" 2>/dev/null | /usr/bin/awk '
+        /^-- / && $0 !~ /^-- [0-9]+ rows/ { text = substr($0, 4); hint = ""; next }
+        /^   [^ ]/ && text != "" && hint == "" { hint = substr($0, 4) }
+        END { if (text != "") { printf "%s", text; if (hint != "") printf "; %s", hint } }
+    ')"
+    local _reason=""
+    case "$_message" in
+        *"(curl 6)"*|*"(curl 7)"*) _reason="The server could not be reached. Check the network connection." ;;
+        *"(curl 18)"*|*"(curl 28)"*|*"(curl 56)"*) _reason="The connection dropped." ;;
+        *"(curl 22)"*) _reason="The server refused the request." ;;
+    esac
+    if [ -z "$_message" ]; then
+        _message="The download tool ended with status $2 and did not say why."
+    else
+        _message="The download tool said: $_message."
+    fi
+    [ -n "$_reason" ] && _message="$_reason $_message"
+    printf '%s' "$_message"
+}
+
+# Record how a download ended. One that finished, or was stopped, leaves nothing behind but what the
+# tool wrote under Corpora; a failed one keeps its directory, so the tab can say why.
+settle_corpus_download() {   # $1 = corpus id, $2 = download dir, $3 = the tool's exit status, $4 = 1 when stopped
+    if [ "$4" = 1 ]; then
+        /bin/rm -rf "$2"
+        return 0
+    fi
+    case "$3" in 129|130|143)
+        /bin/rm -rf "$2"
+        return 0
+        ;;
+    esac
+    corpus_is_present "$1"
+    local _present=$?
+    if [ "$3" -eq 0 ] && [ "$_present" -eq 0 ]; then
+        /bin/rm -rf "$2"
+        return 0
+    fi
+    local _message
+    if [ "$3" -eq 0 ]; then
+        _message="The download tool finished but left no list of recordings at $(corpus_manifest "$1")."
+    else
+        _message="$(fetch_error_message "$2" "$3")"
+    fi
+    write_state "$2/message" "$_message"
+    write_state "$2/state" failed
+}
+
+# The status line for a corpus downloading: how much of the archive has arrived, then unpacking, then
+# listing the recordings. What the tool is doing is read from its archive, which it names in
+# corpora.tsv: growing, whole, then gone.
+corpus_download_status() {   # $1 = corpus id
+    local _dir="$(corpus_download_dir "$1")"
+    local _title="$(corpus_title "$1")"
+    local _total="$(corpus_field "$1" 6)"
+    local _size="$(/usr/bin/stat -f %z "$CORPORA_DIR/$(corpus_field "$1" 10)" 2>/dev/null)"
+    if [ -n "$_size" ]; then
+        # printf, not `:`, to make the marker: the worker may have removed the directory since the
+        # caller saw it running, and a redirection error on a special builtin ends a non-interactive
+        # /bin/sh, which here is the window's poller.
+        [ -f "$_dir/archive.seen" ] || printf '' > "$_dir/archive.seen" 2>/dev/null
+        if [ "$_size" -lt "${_total:-0}" ]; then
+            printf 'Downloading %s: %s of %s (%s%%).' "$_title" "$(format_size "$_size")" "$(format_size "$_total")" "$((_size * 100 / _total))"
+        else
+            printf 'Unpacking %s...' "$_title"
+        fi
+    elif [ -f "$_dir/archive.seen" ]; then
+        printf 'Listing the recordings of %s...' "$_title"
+    else
+        printf 'Starting to download %s...' "$_title"
+    fi
 }
 
 # A sample is the number of recordings a quick sample takes from the start of the corpus, or "all".
@@ -201,7 +446,17 @@ other_windows_busy() {
     return 1
 }
 
-# Mark the run contended whenever a window is busy, for as long as speech runs. Also the net under
+# Returns 0 while anything else Speech does competes with a measurement: a window at work, or a
+# corpus downloading, whose unpacking takes the processor and the disk.
+competing_work_busy() {
+    local _busy
+    other_windows_busy
+    _busy=$?
+    [ "$_busy" -eq 0 ] && return 0
+    any_corpus_download_alive
+}
+
+# Mark the run contended whenever other work is busy, for as long as speech runs. Also the net under
 # Stop: a Stop pressed before speech.pid was written signals nothing, so speech is signaled here
 # once stop.request is seen, as it is when the app that started the worker is gone without running
 # app.will.terminate (killed), which would otherwise leave speech measuring for the rest of the
@@ -212,7 +467,7 @@ watch_contention() {   # $1 = run dir, $2 = speech pid, $3 = app pid (optional)
         pid_alive "$2"
         _alive=$?
         [ "$_alive" -eq 0 ] || break
-        other_windows_busy
+        competing_work_busy
         _busy=$?
         [ "$_busy" -eq 0 ] && : > "$1/contended"
         if [ -f "$WORKER_DIR/stop.request" ]; then
@@ -302,7 +557,7 @@ measure_cell() {   # $1 = cell name, $2 = speech version
     write_state "$_run/total" "$_total"
 
     local _busy
-    other_windows_busy
+    competing_work_busy
     _busy=$?
     [ "$_busy" -eq 0 ] && : > "$_run/contended"
 
@@ -326,7 +581,7 @@ measure_cell() {   # $1 = cell name, $2 = speech version
     /bin/kill "$_watcher" 2>/dev/null
     BENCH_SPEECH_PID=""
     /bin/rm -f "$WORKER_DIR/speech.pid"
-    other_windows_busy
+    competing_work_busy
     _busy=$?
     [ "$_busy" -eq 0 ] && : > "$_run/contended"
 
@@ -340,7 +595,7 @@ measure_cell() {   # $1 = cell name, $2 = speech version
 
     if [ "$_status" -eq 0 ] && [ -s "$_run/report/summary.json" ]; then
         local _note=""
-        [ -f "$_run/contended" ] && _note="Speech was transcribing in a window during this measurement, so its speed and memory may be worse than this Mac can do."
+        [ -f "$_run/contended" ] && _note="Speech was transcribing in a window or downloading a corpus during this measurement, so its speed and memory may be worse than this Mac can do."
         local _line
         _line="$("$jq" -r --arg corpus "$_corpus" --arg sample "$_sample" --arg version "$2" --arg note "$_note" \
             -f "$SCRIPTS_DIR/speech.benchmark.summary.jq" "$_run/report/summary.json" 2> "$_run/summary.err")"
@@ -415,16 +670,12 @@ setup_benchmark() {   # $1 = spool
     /bin/mkdir -p "$_pane"
     local _corpus="$(setting_get benchmark.corpus)"
     [ -n "$_corpus" ] && [ -z "$(corpus_title "$_corpus")" ] && _corpus=""
-    local _id _present
     if [ -z "$_corpus" ]; then
-        for _id in $(corpus_ids); do
-            corpus_is_present "$_id"
-            _present=$?
-            if [ "$_present" -eq 0 ]; then
-                _corpus="$_id"
-                break
-            fi
-        done
+        # The marks are one character per corpus in the table's order, so what stands before the
+        # first p counts the corpora that are not here: the first one that is sits one line further.
+        local _marks="$(corpora_scan "" "$(downloading_corpus_ids)" | /usr/bin/sed -n 1p)"
+        local _absent="${_marks%%p*}"
+        [ "$_absent" != "$_marks" ] && _corpus="$(corpus_ids | /usr/bin/sed -n "$(( ${#_absent} + 1 ))p")"
     fi
     [ -n "$_corpus" ] || _corpus="$(corpus_ids | /usr/bin/head -1)"
     write_state "$_pane/corpus.id" "$_corpus"
@@ -441,23 +692,12 @@ setup_benchmark() {   # $1 = spool
 # The Corpus picker: every standard corpus, with the ones not on this Mac said so.
 populate_corpus_picker() {   # $1 = pane dir
     local _selected="$(read_state "$1/corpus.id")"
-    local _options="["
-    local _first=1
-    local _n=0
-    local _line=""
-    local _id _title _present
-    for _id in $(corpus_ids); do
-        _n=$((_n + 1))
-        _title="$(corpus_title "$_id")"
-        corpus_is_present "$_id"
-        _present=$?
-        [ "$_present" -eq 0 ] || _title="$_title (not on this Mac)"
-        [ "$_id" = "$_selected" ] && _line="$_n"
-        if [ "$_first" = 1 ]; then _first=0; else _options="$_options,"; fi
-        _options="$_options\"$(json_escape "$_title")\""
-    done
-    _options="$_options]"
-    write_state "$1/corpora.sig" "$(corpora_signature)"
+    local _downloading="$(downloading_corpus_ids)"
+    local _scan="$(corpora_scan "$_selected" "$_downloading")"
+    local _marks="$(printf '%s\n' "$_scan" | /usr/bin/sed -n 1p)"
+    local _line="$(printf '%s\n' "$_scan" | /usr/bin/sed -n 2p)"
+    local _options="$(printf '%s\n' "$_scan" | /usr/bin/sed -n 3p)"
+    write_state "$1/corpora.sig" "$_marks$_downloading"
     quiet_begin "$1"
     "$dialog" "$window_uuid" "$BENCH_CORPUS_PICKER" omc_set_property "options" "$_options"
     [ -n "$_line" ] && "$dialog" "$window_uuid" "$BENCH_CORPUS_PICKER" "$_line"
@@ -626,6 +866,14 @@ refresh_benchmark_actions() {   # $1 = spool
     local _present_status=$?
     local _present=0
     [ "$_present_status" -eq 0 ] && _present=1
+    local _downloading=0
+    local _download_failure=""
+    if [ "$_present" = 0 ] && [ -n "$_corpus" ]; then
+        corpus_download_alive "$_corpus"
+        local _downloading_status=$?
+        [ "$_downloading_status" -eq 0 ] && _downloading=1
+        [ "$_downloading" = 0 ] && _download_failure="$(corpus_download_failure "$_corpus")"
+    fi
     local _count="$(queue_count)"
     benchmark_worker_alive
     local _alive_status=$?
@@ -650,10 +898,18 @@ refresh_benchmark_actions() {   # $1 = spool
     [ "$_alive" = 1 ] && [ "$_state" != stopping ] && _can_stop=1
     local _can_remove=0
     [ -n "$_selected" ] && [ "$_selected" != "$_cell" ] && _can_remove=1
+    local _can_download=0
+    [ "$_models_ready" = 1 ] && [ -n "$_corpus" ] && [ "$_present" = 0 ] && [ "$_downloading" = 0 ] && _can_download=1
 
+    # A corpus downloading or failed to download says so before the measurement's progress, which the
+    # queue table shows anyway: it is the corpus the user is looking at.
     local _text=""
     if [ "$_alive" = 1 ] && [ "$_state" = stopping ]; then
         _text="Stopping the measurement. Everything still waiting stays in the queue."
+    elif [ "$_models_ready" = 1 ] && [ "$_downloading" = 1 ]; then
+        _text="$(corpus_download_status "$_corpus")"
+    elif [ "$_models_ready" = 1 ] && [ -n "$_download_failure" ]; then
+        _text="Could not download $(corpus_title "$_corpus"). $_download_failure Press Download to try again."
     elif [ "$_alive" = 1 ] && [ -n "$_cell" ] && [ -f "$BENCHMARKS_DIR/queue/$_cell.cell" ]; then
         _text="Measuring $(benchmark_model_label "$1" "$(cell_field "$_cell" 1)" plain) on $(corpus_title "$(cell_field "$_cell" 2)"), $(sample_name "$(cell_field "$_cell" 3)"): $(benchmark_progress_text "$_pane" "$_cell")."
         [ "$_count" -gt 1 ] && _text="$_text $((_count - 1)) more waiting."
@@ -662,8 +918,7 @@ refresh_benchmark_actions() {   # $1 = spool
     elif [ "$_models_ready" = 0 ]; then
         _text=""
     elif [ "$_present" = 0 ]; then
-        local _relative="$(corpus_field "$_corpus" 4)"
-        _text="$(corpus_title "$_corpus") is not on this Mac yet. Speech looks for it in $CORPORA_DIR/${_relative%/*}."
+        _text="$(corpus_title "$_corpus") is not on this Mac yet. Press Download to get it ($(format_size "$(corpus_field "$_corpus" 6)"))."
     elif [ -z "$_model" ]; then
         local _tag="$(corpus_field "$_corpus" 3)"
         _text="No model on this Mac transcribes $(language_display_name "${_tag%%-*}") yet. Choose $DOWNLOAD_MODELS_OPTION in the Model picker to get one."
@@ -672,14 +927,21 @@ refresh_benchmark_actions() {   # $1 = spool
     elif [ "${_count:-0}" -gt 1 ]; then
         _text="$_count measurements are waiting. Press Run to measure them one after another."
     else
-        _text="Add models to the queue, then press Run. Results from this Mac are listed above the reference results."
+        corpus_has_reference "$_corpus"
+        local _has_reference=$?
+        if [ "$_has_reference" -eq 0 ]; then
+            _text="Add models to the queue, then press Run. Results from this Mac are listed above the reference results."
+        else
+            _text="Add models to the queue, then press Run. No reference results are published for $(corpus_title "$_corpus"), so the table shows this Mac's measurements alone."
+        fi
     fi
 
-    local _signature="$_can_add$_can_run$_can_stop$_can_remove$_models_ready|$_text"
+    local _signature="$_can_add$_can_run$_can_stop$_can_remove$_can_download$_models_ready|$_text"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
     set_enabled "$BENCH_ADD_BTN" "$_can_add"
+    set_enabled "$BENCH_DOWNLOAD_BTN" "$_can_download"
     set_enabled "$BENCH_RUN_BTN" "$_can_run"
     set_enabled "$BENCH_STOP_BTN" "$_can_stop"
     set_enabled "$BENCH_REMOVE_BTN" "$_can_remove"
