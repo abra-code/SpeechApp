@@ -31,6 +31,12 @@ else
     show_transcript_file "$pane/items/$key/transcript.txt"
 fi
 
+# Playing follows the selection, so the play button always means the row the user is looking at and
+# nothing goes on sounding out of a row no one can see. Re-selecting the recording that is playing,
+# which is what the table's own refresh does every tick, leaves it alone.
+playing="$(playing_path "$pane")"
+[ -n "$playing" ] && [ "$playing" != "$path" ] && stop_playback "$pane"
+
 /bin/rm -f "$pane/actions.sig"
 refresh_recordings_actions "$pane"
 

@@ -97,7 +97,7 @@ check_contains "the status says so" \
     "Could not download FLEURS English (US). The server could not be reached." "$(ui_value "$BENCH_STATUS")"
 check_contains "and what to do" "Press Download to try again." "$(ui_value "$BENCH_STATUS")"
 check "Download is enabled again" "1" "$(ui_enabled "$BENCH_DOWNLOAD_BTN")"
-check_contains "the picker still marks it as not here" "\"FLEURS English (US) $download_mark\"" "$(ui_prop "$BENCH_CORPUS_PICKER" options)"
+check_contains "the picker still marks it as not here" "\"FLEURS English (US)$download_mark\"" "$(ui_prop "$BENCH_CORPUS_PICKER" options)"
 
 section "A tool that finishes without a manifest is a failure, not a corpus"
 FAKE_FETCH_MODE=empty

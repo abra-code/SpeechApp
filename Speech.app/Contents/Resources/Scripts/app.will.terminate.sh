@@ -25,6 +25,12 @@
     esac
 done
 
+# A recording being played back in any window is stopped as well: its afplay is not a speech
+# process, and the spool that could stop it is about to go.
+for spool in "$SESSIONS_DIR"/*; do
+    [ -d "$spool/recordings" ] && stop_playback "$spool/recordings"
+done
+
 [ -d "$SESSIONS_DIR" ] && /bin/rm -rf "$SESSIONS_DIR"
 
 exit 0

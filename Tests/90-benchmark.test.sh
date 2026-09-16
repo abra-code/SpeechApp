@@ -61,10 +61,10 @@ tick
 check "the first corpus is chosen" "cmn_hans_cn" "$(/bin/cat "$(bench_pane)/corpus.id" 2>/dev/null)"
 corpus_options="$(ui_prop "$BENCH_CORPUS_PICKER" options)"
 check_contains "the corpora with reference results come first, each marked as not on this Mac" \
-    "[\"FLEURS Chinese (Mandarin) $download_mark\",\"FLEURS English (US) $download_mark\",\"FLEURS French $download_mark\",\"FLEURS German $download_mark\",\"FLEURS Polish $download_mark\",\"FLEURS Spanish (Latin America) $download_mark\",\"LibriSpeech test-clean (English, clear speech) $download_mark\",\"LibriSpeech test-other (English, harder speech) $download_mark\"," \
+    "[\"FLEURS Chinese (Mandarin)$download_mark\",\"FLEURS English (US)$download_mark\",\"FLEURS French$download_mark\",\"FLEURS German$download_mark\",\"FLEURS Polish$download_mark\",\"FLEURS Spanish (Latin America)$download_mark\",\"LibriSpeech test-clean (English, clear speech)$download_mark\",\"LibriSpeech test-other (English, harder speech)$download_mark\"," \
     "$corpus_options"
 check_contains "and the rest of the FLEURS languages follow, by name" \
-    "\"FLEURS Afrikaans $download_mark\",\"FLEURS Amharic $download_mark\",\"FLEURS Arabic (Egypt) $download_mark\"," \
+    "\"FLEURS Afrikaans$download_mark\",\"FLEURS Amharic$download_mark\",\"FLEURS Arabic (Egypt)$download_mark\"," \
     "$corpus_options"
 check "every FLEURS language FLEURS has a test split for is offered" "102" \
     "$(printf '%s' "$corpus_options" | /usr/bin/grep -o '"FLEURS ' | /usr/bin/grep -c .)"
@@ -177,8 +177,13 @@ check "but what was asked, where and when" "apple.dictation|pl_pl|$this_macos|pl
     "$(result_field 4 1)|$(result_field 4 2)|$(result_field 4 3)|$(result_field 4 4)|$(result_field 4 25)"
 check_exists "the failed run is kept for a look" "$benchmarks/runs"
 tick
+# The failure is stamped with this Mac's real macOS, but the fixture catalog says this Mac runs
+# 26.6.2, so on any other macOS the row also carries the note for an Apple row from another version.
+failed_note=""
+[ "$this_macos" = "26.6.2" ] ||
+    failed_note=" Measured on macOS $this_macos. Apple's engines change with macOS, and this Mac runs 26.6.2."
 check "the model's newest measurement is the failure, above the reference" \
-    "$dictation	Failed	-	-	-	-	$where, macOS $this_macos, $today	no rows could be scored, so there is no measurement: cannot decode the recording" \
+    "$dictation	Failed	-	-	-	-	$where, macOS $this_macos, $today	no rows could be scored, so there is no measurement: cannot decode the recording$failed_note" \
     "$(table_row "$BENCH_RESULTS_TABLE" 1)"
 check "the older result is not listed twice" "4" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
 choose "$BENCH_SAMPLE_PICKER" 1 speech.benchmark.sample.changed

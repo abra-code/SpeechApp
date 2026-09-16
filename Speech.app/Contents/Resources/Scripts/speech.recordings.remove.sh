@@ -18,6 +18,10 @@ fi
 path="$(selected_recording_path "$pane")"
 [ -n "$path" ] || exit 0
 
+# A recording no longer in the list has no button left to stop it with.
+playing="$(playing_path "$pane")"
+[ "$playing" = "$path" ] && stop_playback "$pane"
+
 remove_recording "$pane" "$path"
 show_transcript_file ""
 render_recordings_table "$pane"

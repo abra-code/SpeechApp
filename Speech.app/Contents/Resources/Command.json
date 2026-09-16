@@ -152,6 +152,26 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.play",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.reveal",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.trash",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.trash.confirm",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.recordings.transcribe",
       "EXECUTION_MODE": "exe_script_file"
     },

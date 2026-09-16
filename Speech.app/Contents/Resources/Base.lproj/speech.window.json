@@ -4,9 +4,9 @@
     "spacing": 0,
     "background": "background",
     "frame": {
-      "minWidth": 760,
+      "minWidth": 940,
       "minHeight": 480,
-      "idealWidth": 940,
+      "idealWidth": 1040,
       "idealHeight": 640,
       "maxWidth": "infinity",
       "maxHeight": "infinity"
@@ -247,7 +247,7 @@
                       },
                       {
                         "type": "HStack",
-                        "properties": { "spacing": 4, "padding": { "top": 6 } },
+                        "properties": { "spacing": 10, "padding": { "top": 6, "leading": 6, "trailing": 6 } },
                         "children": [
                           {
                             "type": "Button",
@@ -255,6 +255,7 @@
                             "properties": {
                               "systemImage": "plus",
                               "buttonStyle": "borderless",
+                              "help": "Add recordings to the list",
                               "actionID": "speech.open"
                             }
                           },
@@ -265,10 +266,45 @@
                               "systemImage": "minus",
                               "buttonStyle": "borderless",
                               "disabled": true,
+                              "help": "Take the selected recording out of the list. The file stays where it is.",
                               "actionID": "speech.recordings.remove"
                             }
                           },
-                          { "type": "Spacer" }
+                          { "type": "Divider", "properties": { "frame": { "height": 16 } } },
+                          {
+                            "type": "Button",
+                            "id": 164,
+                            "properties": {
+                              "systemImage": "play.fill",
+                              "buttonStyle": "borderless",
+                              "disabled": true,
+                              "help": "Play the selected recording",
+                              "actionID": "speech.recordings.play"
+                            }
+                          },
+                          {
+                            "type": "Button",
+                            "id": 165,
+                            "properties": {
+                              "systemImage": "finder",
+                              "buttonStyle": "borderless",
+                              "disabled": true,
+                              "help": "Show the selected recording in the Finder",
+                              "actionID": "speech.recordings.reveal"
+                            }
+                          },
+                          { "type": "Spacer" },
+                          {
+                            "type": "Button",
+                            "id": 163,
+                            "properties": {
+                              "systemImage": "trash",
+                              "buttonStyle": "borderless",
+                              "disabled": true,
+                              "help": "Move the selected recording to the Trash",
+                              "actionID": "speech.recordings.trash"
+                            }
+                          }
                         ]
                       }
                     ]
@@ -467,7 +503,7 @@
                       },
                       {
                         "type": "HStack",
-                        "properties": { "spacing": 4 },
+                        "properties": { "spacing": 10, "padding": { "leading": 6, "trailing": 6 } },
                         "children": [
                           {
                             "type": "Button",

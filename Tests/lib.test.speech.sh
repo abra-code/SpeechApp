@@ -26,6 +26,16 @@ SPEECH_REFERENCE_MEASUREMENTS="$OMCTEST_FIXTURES/reference.tsv"
 SPEECH_FETCH_TOOLS_DIR="$OMCTEST_TESTS/helpers/fetch-tools"
 FAKE_FETCH_LOG="$OMCTEST_WORK/fake-fetch.log"
 export SPEECH_FETCH_TOOLS_DIR FAKE_FETCH_LOG
+# The Recordings tab's file buttons, pointed away from the speakers, the Finder and the tester's
+# own Trash. FAKE_TRASH_DIR is where the fake osascript puts what it is asked to trash.
+SPEECH_AFPLAY_BIN="$OMCTEST_TESTS/helpers/fake-afplay.sh"
+SPEECH_OPEN_BIN="$OMCTEST_TESTS/helpers/fake-open.sh"
+SPEECH_OSASCRIPT_BIN="$OMCTEST_TESTS/helpers/fake-osascript.sh"
+FAKE_AFPLAY_LOG="$OMCTEST_WORK/fake-afplay.log"
+FAKE_OPEN_LOG="$OMCTEST_WORK/fake-open.log"
+FAKE_OSASCRIPT_LOG="$OMCTEST_WORK/fake-osascript.log"
+FAKE_TRASH_DIR="$OMCTEST_WORK/Trash"
+export SPEECH_AFPLAY_BIN SPEECH_OPEN_BIN SPEECH_OSASCRIPT_BIN FAKE_AFPLAY_LOG FAKE_OPEN_LOG FAKE_OSASCRIPT_LOG FAKE_TRASH_DIR
 # The language picker falls back to the locale's language; pin it so the suite does not depend
 # on the machine it runs on.
 LANG="en_US.UTF-8"
@@ -41,9 +51,10 @@ if [ ! -x "$OMCTEST_APP/Contents/Support/fingerprint" ]; then
 fi
 
 # The marks the applet appends, written as bytes so this file stays ASCII. An arrow to a bar
-# (U+2913) on a corpus that is not on this Mac, and the squared letters on model labels:
-# M (U+1F13C) MLX, G (U+1F136) ggml, F (U+1F135) FluidAudio. Apple's labels get none.
-download_mark="$(printf '\342\244\223')"
+# (U+2913) on a corpus that is not on this Mac, held off from the title by the gap the picker
+# writes, and the squared letters on model labels: M (U+1F13C) MLX, G (U+1F136) ggml,
+# F (U+1F135) FluidAudio. Apple's labels get none.
+download_mark="$(printf '   \342\244\223')"
 mlx_mark="$(printf '\360\237\204\274')"
 ggml_mark="$(printf '\360\237\204\266')"
 fluid_mark="$(printf '\360\237\204\265')"
@@ -138,6 +149,14 @@ reset_state() {
 reap_fake() {
     local _pid
     for _pid in $(/usr/bin/pgrep -f "$SPEECH_BIN" 2>/dev/null); do
+        /bin/kill -KILL "$_pid" 2>/dev/null
+    done
+}
+
+# The same for a fake afplay left playing.
+reap_fake_afplay() {
+    local _pid
+    for _pid in $(/usr/bin/pgrep -f "$SPEECH_AFPLAY_BIN" 2>/dev/null); do
         /bin/kill -KILL "$_pid" 2>/dev/null
     done
 }

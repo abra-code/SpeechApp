@@ -21,6 +21,9 @@ for pane in live recordings; do
 done
 capture="$(capture_dir "$spool/recordings")"
 [ -n "$capture" ] && signal_speech_pid "$(read_state "$capture/speech.pid")" TERM
+# A recording being played back is stopped too: the window it was played from is going away, and
+# nothing would be left to stop it with.
+stop_playback "$spool/recordings"
 /bin/rm -rf "$spool"
 
 exit 0
