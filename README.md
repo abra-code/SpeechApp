@@ -12,10 +12,20 @@ UI rendered by **ActionUI** - [github.com/abra-code/ActionUI](https://github.com
 ## Features
 
 - **Live** - transcribes the microphone as you speak. The words still being spoken are shown as a draft and settle as each sentence ends. Stop keeps the transcript; export it or copy it.
-- **Recordings** - a list of audio and video files, transcribed one after another. Drop files onto the window or the app, use File > Open..., "Open With" in Finder, or the "Transcribe with Speech" service, or press Record to capture a new recording into `~/Documents/Speech Recordings`. Each transcript is saved beside its recording as `<name> - <model id>.txt`, so one recording transcribed with several models keeps every transcript. An existing transcript is replaced only when Speech wrote it and neither it nor the recording has changed since; otherwise it is left alone and the Status column says why.
+- **Recordings** - a list of audio and video files, transcribed one after another. Drop files onto the window or the app, use File > Open..., "Open With" in Finder, or the "Transcribe with Speech" service, or press Record to capture a new recording into `~/Documents/Speech Recordings`. Each transcript is saved beside its recording as `<name> - <model id>.txt`, so one recording transcribed with several models keeps every transcript. An existing transcript is replaced only when Speech wrote it and neither it nor the recording has changed since; otherwise it is left alone and the Status column says why. The selected recording plays in the pane above its transcript, and the arrows reorder the list: with Join Transcripts on, Export and Copy give one transcript for the whole list, in list order, with the timings carried across.
 - **Export** - plain text, SRT and WebVTT subtitles, or JSON with word and segment timings.
 - **Models** (Models > Manage Models...) - every model the `speech` catalog knows, grouped as built into macOS, downloaded, and available to download. Downloads keep going after the window is closed and resume after the app quits. A model is never deleted while it is downloading or transcribing. Add Model... adds a transcribe.cpp (ggml) model from Hugging Face that the list does not include: Speech downloads it, checks that it can transcribe with it, and lists it with the rest. The information button shows a model's details and its family's page, with reference measurements taken on one test Mac.
-- **Benchmarks** - measuring models on this Mac, with standard test recordings and your own, arrives in a later update.
+- **Benchmarks** - measures models on this Mac, because a published measurement belongs to the Mac it was taken on. Pick a corpus of standard test recordings (FLEURS in 102 languages, LibriSpeech in English; Download fetches one), a quick sample of 100 recordings or the full set, and add models to the queue. One measurement runs at a time, so they do not compete for the same memory and Neural Engine, and the queue survives quitting. The table gives error rate, character error rate, speed and peak memory, with this Mac's rows above the reference rows from the test Mac. Measuring on your own recordings arrives in a later update.
+
+## Recordings it can read
+
+Anything macOS itself decodes, video included, since Speech takes the audio track. Every recording is decoded once to 16 kHz mono before any model sees it, so a stereo 48 kHz file and a mono 16 kHz file of the same take are transcribed from the same audio; a file with several audio tracks has them mixed together.
+
+| | Formats |
+| --- | --- |
+| Audio | WAV, AIFF, CAF, MP3, M4A and AAC, Apple Lossless, FLAC |
+| Video | MOV, MP4, M4V, and other containers QuickTime opens |
+| Not read | WebM, Matroska (MKV), Ogg, Opus, WMA, AMR - Speech says so rather than half-transcribing them. Convert to WAV or M4A first. |
 
 ## Models and engines
 

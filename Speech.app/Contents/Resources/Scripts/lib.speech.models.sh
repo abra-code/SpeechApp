@@ -535,4 +535,296 @@ poll_models_window() {   # $1 = spool
     render_cards "$1"
     refresh_download_cards "$1"
     refresh_add_status "$1"
+    refresh_suggestion "$1"
+}
+
+# --- best for a language -------------------------------------------------------------------------
+# The box above the list answers one question: which model should I use for this language? The
+# Benchmarks tab holds the whole ranking, which is several axes wide; this is two lines for a quick
+# decision, and it only ever repeats a measurement. speech.suggest.awk makes the picks and its
+# header states the rules; everything here is the language list, the wording and the state.
+#
+# State in the window's spool, under suggest/:
+#   models.tsv        every transcriber row of the catalog (speech.suggest.jq)
+#   languages.tsv     the picker's options in order: tag <TAB> display name
+#   language.names    the display names alone, in the same order, for the picker
+#   language.tag      the language the box is showing
+#   picks, picks.sig  the last picks and the inputs they were made from, so a tick that changes
+#                     nothing pushes nothing
+#   picker_quiet      the quiet window (quiet_begin), this picker's alone
+
+suggest_dir() { printf '%s/suggest' "$1"; }   # $1 = spool
+
+# The catalog as speech.suggest.awk wants it, including rows not downloaded yet: a suggestion may
+# name a model worth having, and its size is what the user would be agreeing to.
+load_suggest_models() {   # $1 = spool
+    local _dir="$(suggest_dir "$1")"
+    /bin/mkdir -p "$_dir"
+    [ -f "$1/catalog.json" ] || return 1
+    "$jq" -r -f "$SCRIPTS_DIR/speech.suggest.jq" "$1/catalog.json" > "$_dir/models.tmp" 2>/dev/null
+    local _status=$?
+    if [ "$_status" -ne 0 ] || [ ! -s "$_dir/models.tmp" ]; then
+        /bin/rm -f "$_dir/models.tmp"
+        return 1
+    fi
+    # Only replace the file when its content changed: render_suggestion signs its inputs by
+    # modification time, and a rewrite every tick would make every tick look like new evidence.
+    /usr/bin/cmp -s "$_dir/models.tmp" "$_dir/models.tsv"
+    local _same=$?
+    if [ "$_same" -eq 0 ]; then
+        /bin/rm -f "$_dir/models.tmp"
+        return 0
+    fi
+    /bin/mv -f "$_dir/models.tmp" "$_dir/models.tsv" || return 1
+    # The content changed, whatever the clock says: a second rewrite of the same size within
+    # one second would leave the modification time and size alone.
+    /bin/rm -f "$_dir/picks.sig"
+}
+
+# The measurement files, with an absent one named as /dev/null so awk still reads a role for it.
+suggest_input() {   # $1 = results | reference | live
+    local _path
+    case "$1" in
+        results) _path="$RESULTS_FILE" ;;
+        reference) _path="$REFERENCE_MEASUREMENTS" ;;
+        live) _path="$REFERENCE_LIVE_MEASUREMENTS" ;;
+    esac
+    if [ -f "$_path" ]; then printf '%s' "$_path"; else printf '/dev/null'; fi
+}
+
+# The measurement files as a signature: modification time and size of each one that exists. An
+# absent file is a fixed mark, never a stat of /dev/null, whose modification time is the last
+# write to it by anything on the Mac and so changes every second.
+suggest_inputs_sig() {
+    local _role _path
+    for _role in results reference live; do
+        _path="$(suggest_input "$_role")"
+        if [ "$_path" = /dev/null ]; then
+            printf '%s:- ' "$_role"
+        else
+            printf '%s:%s ' "$_role" "$(/usr/bin/stat -f '%m/%z' "$_path" 2>/dev/null)"
+        fi
+    done
+}
+
+# The languages the picker offers: the ones something has been measured in. Not every language the
+# catalog claims - 96 of the 102 corpora have no measurement at all, and a menu whose entries can
+# only answer "not measured" is a worse menu. This Mac's own results are read too, so measuring a
+# new language in the Benchmarks tab adds it here.
+measured_languages() {
+    /usr/bin/awk -F'\t' '
+        /^#/ { next }
+        $1 == "model" {
+            language_column = 0
+            status_column = 0
+            for (i = 1; i <= NF; i++) {
+                if ($i == "language") language_column = i
+                if ($i == "status") status_column = i
+            }
+            next
+        }
+        # A failed run of this Mac is not a measurement (speech.suggest.awk skips it too).
+        status_column > 0 && $status_column != "ok" { next }
+        language_column > 0 && $language_column != "" && $language_column != "-" {
+            tag = $language_column
+            cut = index(tag, "-")
+            if (cut > 0) tag = substr(tag, 1, cut - 1)
+            if (tag != "" && !(tag in seen)) { seen[tag] = 1; print tag }
+        }
+    ' "$(suggest_input results)" "$(suggest_input reference)" "$(suggest_input live)"
+}
+
+# Fill the picker: English first, which the owner asked for as the default and which has the most
+# measured rows, then the rest by name. Returns non-zero when nothing has been measured at all.
+populate_suggest_languages() {   # $1 = spool
+    local _dir="$(suggest_dir "$1")"
+    /bin/mkdir -p "$_dir"
+    local _tag
+    : > "$_dir/languages.unsorted"
+    measured_languages | while IFS= read -r _tag; do
+        [ -n "$_tag" ] || continue
+        printf '%s\t%s\n' "$_tag" "$(language_display_name "$_tag")" >> "$_dir/languages.unsorted"
+    done
+    if [ ! -s "$_dir/languages.unsorted" ]; then
+        /bin/rm -f "$_dir/languages.unsorted"
+        return 1
+    fi
+    : > "$_dir/languages.tsv.tmp"
+    /usr/bin/awk -F'\t' '$1 == "en"' "$_dir/languages.unsorted" >> "$_dir/languages.tsv.tmp"
+    /usr/bin/awk -F'\t' '$1 != "en"' "$_dir/languages.unsorted" \
+        | LC_ALL=C /usr/bin/sort -t "$TAB" -k2,2f >> "$_dir/languages.tsv.tmp"
+    /bin/mv -f "$_dir/languages.tsv.tmp" "$_dir/languages.tsv"
+    /bin/rm -f "$_dir/languages.unsorted"
+    /usr/bin/awk -F'\t' '{ print $2 }' "$_dir/languages.tsv" > "$_dir/language.names"
+
+    local _options
+    _options="$("$jq" -R -s -c 'split("\n") | map(select(length > 0))' < "$_dir/language.names" 2>/dev/null)"
+    [ -n "$_options" ] || return 1
+    quiet_begin "$_dir"
+    "$dialog" "$window_uuid" "$MODELS_BEST_LANG" omc_set_property "options" "$_options"
+
+    # The remembered language when the picker still offers it, English otherwise.
+    local _want="$(read_state "$_dir/language.tag")"
+    [ -n "$_want" ] || _want="$(setting_get models.best.language)"
+    local _position="$(/usr/bin/awk -F'\t' -v want="$_want" '$1 == want { print NR; exit }' "$_dir/languages.tsv")"
+    if [ -z "$_position" ]; then
+        _position="$(/usr/bin/awk -F'\t' '$1 == "en" { print NR; exit }' "$_dir/languages.tsv")"
+        [ -n "$_position" ] || _position=1
+        _want="$(/usr/bin/awk -F'\t' -v line="$_position" 'NR == line { print $1; exit }' "$_dir/languages.tsv")"
+    fi
+    write_state "$_dir/language.tag" "$_want"
+    "$dialog" "$window_uuid" "$MODELS_BEST_LANG" "$_position"
+}
+
+# One pick as a phrase: the model, its error rate, and the figure that matters for the mode -
+# throughput for a recording, the wait for the first text when speaking.
+suggest_phrase() {   # $1 = mode, $2 = name, $3 = metric, $4 = figure, $5 = second, $6 = state, $7 = wait
+    local _errors="word errors"
+    [ "$3" = cer ] && _errors="character errors"
+    printf '%s - %s%% %s' "$2" "$4" "$_errors"
+    if [ -n "$5" ]; then
+        case "$1" in
+            recordings) printf ', %sx real time' "$5" ;;
+            # A row that emits partials shows text while you speak; one that does not has nothing
+            # to show until a sentence closes, and its figure is how far behind that text arrives.
+            live)
+                if [ "$7" = final ]; then
+                    printf ', whole sentences %s s behind you' "$5"
+                else
+                    printf ', first text after %s s' "$5"
+                fi
+                ;;
+        esac
+    fi
+    case "$6" in
+        installed|system_managed) ;;
+        *) printf ' (not downloaded)' ;;
+    esac
+}
+
+# The line for one mode, as markdown: a bold label, the pick, and any second answer on its own
+# line. Two trailing spaces before a newline are a markdown hard break, which AttributedString
+# keeps (a bare newline collapses to a space). Nothing here says where a figure came from or how
+# many recordings it scored: four facts a line is four facts nobody reads, and the Benchmarks tab
+# is where provenance belongs.
+suggest_line() {   # $1 = picks file, $2 = mode, $3 = language name
+    local _mode _kind _id _name _metric _figure _second _rows _corpus _source _state _size _wait
+    local _text=""
+    local _label="Recordings"
+    [ "$2" = live ] && _label="Live"
+    # A tab in IFS is whitespace to `read`, which runs a row's empty fields together and shifts
+    # the ones after them; the unit separator keeps every field in its place. The here-document
+    # keeps the loop in this shell, so _text survives it.
+    while IFS="$US" read -r _mode _kind _id _name _metric _figure _second _rows _corpus _source _state _size _wait; do
+        [ "$_mode" = "$2" ] || continue
+        case "$_kind" in
+            none)
+                if [ "$_id" = unsupported ]; then
+                    _text="**$_label:** no model lists $3."
+                elif [ "$_figure" = 0 ]; then
+                    _text="**$_label:** nothing measured in $3."
+                elif [ "$2" = recordings ]; then
+                    _text="**$_label:** not measured in $3 yet - $_figure models list it, and the Benchmarks tab measures one on this Mac."
+                else
+                    _text="**$_label:** not measured in $3 yet - $_figure models list it."
+                fi
+                ;;
+            accurate)
+                if [ -z "$_text" ]; then
+                    _text="**$_label:** $(suggest_phrase "$2" "$_name" "$_metric" "$_figure" "$_second" "$_state" "$_wait")"
+                else
+                    # A second corpus of the same language picked a different model: both are
+                    # true, and which one matters depends on the kind of recording.
+                    _text="$_text  
+**On other recordings:** $(suggest_phrase "$2" "$_name" "$_metric" "$_figure" "$_second" "$_state" "$_wait")"
+                fi
+                ;;
+            fast)
+                local _second_label="Faster"
+                [ "$2" = live ] && _second_label="Quicker to show text"
+                _text="$_text  
+**$_second_label:** $(suggest_phrase "$2" "$_name" "$_metric" "$_figure" "$_second" "$_state" "$_wait")"
+                ;;
+        esac
+    done <<EOF
+$(/usr/bin/tr '\t' '\037' < "$1")
+EOF
+    printf '%s' "$_text"
+}
+
+# The picks for the chosen language, pushed only when their inputs changed.
+render_suggestion() {   # $1 = spool
+    local _dir="$(suggest_dir "$1")"
+    local _tag="$(read_state "$_dir/language.tag")"
+    [ -n "$_tag" ] || return 0
+    [ -f "$_dir/models.tsv" ] || return 0
+    local _results="$(suggest_input results)"
+    local _reference="$(suggest_input reference)"
+    local _live="$(suggest_input live)"
+    local _sig="$_tag|$(/usr/bin/stat -f '%m/%z' "$_dir/models.tsv" 2>/dev/null) $(suggest_inputs_sig)"
+    [ "$_sig" = "$(read_state "$_dir/picks.sig")" ] && return 0
+
+    /usr/bin/awk -F'\t' -v language="$_tag" \
+        -v mlx="$MLX_MARK" -v ggml="$GGML_MARK" -v fluid="$FLUID_MARK" \
+        -f "$SCRIPTS_DIR/speech.suggest.awk" \
+        role=models "$_dir/models.tsv" role=results "$_results" \
+        role=reference "$_reference" role=live "$_live" > "$_dir/picks.tmp" 2>/dev/null
+    local _status=$?
+    if [ "$_status" -ne 0 ]; then
+        /bin/rm -f "$_dir/picks.tmp"
+        return 1
+    fi
+    /bin/mv -f "$_dir/picks.tmp" "$_dir/picks"
+    write_state "$_dir/picks.sig" "$_sig"
+
+    local _name="$(language_display_name "$_tag")"
+    "$dialog" "$window_uuid" "$MODELS_BEST_RECORDINGS" markdown \
+        "$(suggest_line "$_dir/picks" recordings "$_name")"
+    "$dialog" "$window_uuid" "$MODELS_BEST_LIVE" markdown \
+        "$(suggest_line "$_dir/picks" live "$_name")"
+}
+
+handle_suggest_language_changed() {   # $1 = spool, $2 = picker value
+    local _dir="$(suggest_dir "$1")"
+    quiet_active "$_dir"
+    local _quiet=$?
+    [ "$_quiet" -eq 0 ] && return 0
+    case "$2" in ''|*[!0-9]*) return 0 ;; esac
+    local _tag="$(suggest_language_at "$1" "$2")"
+    [ -n "$_tag" ] || return 0
+    [ "$_tag" = "$(read_state "$_dir/language.tag")" ] && return 0
+    write_state "$_dir/language.tag" "$_tag"
+    setting_set models.best.language "$_tag"
+    /bin/rm -f "$_dir/picks.sig"
+    render_suggestion "$1"
+}
+
+suggest_language_at() {   # $1 = spool, $2 = 1-based picker position
+    /usr/bin/awk -F'\t' -v line="$2" 'NR == line { print $1; exit }' \
+        "$(suggest_dir "$1")/languages.tsv" 2>/dev/null
+}
+
+# The box, from the window's init and from every tick that read a new catalog: the language list
+# can gain a language when this Mac measures one, and the picks can change when a model is
+# downloaded or deleted.
+refresh_suggestion() {   # $1 = spool
+    local _dir="$(suggest_dir "$1")"
+    load_suggest_models "$1" || return 1
+    # The list is rebuilt only when the measurement files themselves changed, because filling a
+    # picker fires its action with a transitional value; a tick that pushed the same options every
+    # half second would spend every tick inside a quiet window.
+    local _list_sig="$(suggest_inputs_sig)"
+    if [ ! -f "$_dir/languages.tsv" ] || [ ! -f "$_dir/language.tag" ] \
+        || [ "$_list_sig" != "$(read_state "$_dir/languages.sig")" ]; then
+        populate_suggest_languages "$1"
+        local _status=$?
+        if [ "$_status" -ne 0 ]; then
+            set_shown "$MODELS_BEST_BOX" 0
+            return 1
+        fi
+        write_state "$_dir/languages.sig" "$_list_sig"
+        set_shown "$MODELS_BEST_BOX" 1
+        /bin/rm -f "$_dir/picks.sig"
+    fi
+    render_suggestion "$1"
 }

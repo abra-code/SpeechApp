@@ -60,6 +60,10 @@ MODELS_STAMP="$APP_SUPPORT/models.changed"
 CORPORA_TSV="$RESOURCES_DIR/corpora.tsv"
 CORPORA_DIR="$APP_SUPPORT/Corpora"
 REFERENCE_MEASUREMENTS="${SPEECH_REFERENCE_MEASUREMENTS:-$RESOURCES_DIR/Reference/measurements.tsv}"
+# Live figures are a separate file because they are a separate measurement: at the pace of speech
+# there is no throughput to report, and the columns that matter are when text appears and how far
+# the finals run behind (speech docs/benchmarks/live.md).
+REFERENCE_LIVE_MEASUREMENTS="${SPEECH_REFERENCE_LIVE_MEASUREMENTS:-$RESOURCES_DIR/Reference/live-measurements.tsv}"
 BENCHMARKS_DIR="$APP_SUPPORT/Benchmarks"
 BENCHMARK_WORKER_SCRIPT="$SCRIPTS_DIR/speech.benchmark.worker.sh"
 # A standard corpus is downloaded by speech's own fetch tools, copied into the bundle by
@@ -150,6 +154,11 @@ QUICK_SAMPLE_ROWS=100
 MODELS_STATUS=910
 MODELS_DONE_BTN=920
 MODELS_ADD_BTN=930
+# "Best for" - two suggestions for the chosen language, from the measurements only.
+MODELS_BEST_BOX=1000
+MODELS_BEST_LANG=1010
+MODELS_BEST_RECORDINGS=1020
+MODELS_BEST_LIVE=1030
 MODELS_BUILTIN_BOX=1100
 MODELS_BUILTIN_LIST=1102
 MODELS_INSTALLED_BOX=1200

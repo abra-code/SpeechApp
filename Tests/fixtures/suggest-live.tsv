@@ -1,0 +1,8 @@
+# Live figures shaped for the Models window's "Best for" box, with the same columns as speech's
+# live-measurements.tsv. English has continuous passages, which is what a live figure has to be
+# measured on; Polish has only single sentences, the thin case the box has to report honestly.
+#
+model	corpus	macos	language	rows	pace	wer_pct	cer_pct	peak_memory_bytes	load_seconds	first_partial_median_s	final_lag_median_s	final_lag_worst_s	finish_median_s	trailing_words_lost	rows_without_partials	dropped_buffers	date
+ggml.nemotron-3.5-asr-streaming-0.6b@q8_0	librispeech-continuous-test-clean	26.6.2	en-US	20	1.00	3.60	1.08	751094240	0.50	0.91	1.27	2.10	0.08	1	0	0	2026-09-13T11:12:58Z
+apple.dictation	librispeech-continuous-test-clean	26.6.2	en-US	20	1.00	7.64	3.38	21709496	0.10	1.11	1.78	2.47	0.71	0	0	0	2026-09-13T11:12:58Z
+fluid.parakeet-v3@int8	pl_pl	26.7.0	pl-PL	25	1.00	11.52	3.51	483257242	0.08		0.50	1.72	0.16	6	25	0	2026-09-17T11:10:05Z

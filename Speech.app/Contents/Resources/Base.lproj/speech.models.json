@@ -24,6 +24,41 @@
       }
     },
     {
+      "type": "VStack",
+      "id": 1000,
+      "properties": {
+        "spacing": 6,
+        "alignment": "leading",
+        "padding": 12,
+        "background": "background.secondary",
+        "cornerRadius": 8,
+        "frame": { "maxWidth": "infinity" }
+      },
+      "children": [
+        {
+          "type": "HStack",
+          "properties": { "spacing": 8 },
+          "children": [
+            { "type": "Text", "properties": { "text": "Best for", "font": "headline" } },
+            {
+              "type": "Picker",
+              "id": 1010,
+              "properties": {
+                "pickerStyle": "menu",
+                "labelsHidden": true,
+                "options": ["Loading..."],
+                "actionID": "speech.models.language.changed",
+                "help": "The languages something has been measured in, on this Mac or on the test Mac",
+                "frame": { "minWidth": 200, "idealWidth": 240 }
+              }
+            }
+          ]
+        },
+        { "type": "Text", "id": 1020, "properties": { "text": "", "font": "callout", "frame": { "maxWidth": "infinity", "alignment": "leading" } } },
+        { "type": "Text", "id": 1030, "properties": { "text": "", "font": "callout", "frame": { "maxWidth": "infinity", "alignment": "leading" } } }
+      ]
+    },
+    {
       "type": "ScrollView",
       "properties": { "frame": { "maxWidth": "infinity", "maxHeight": "infinity" } },
       "content": {

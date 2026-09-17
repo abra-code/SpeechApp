@@ -22,6 +22,8 @@ FAKE_SPEECH_LOG="$OMCTEST_WORK/fake-speech.log"
 SPEECH_TEST_RECORD_DIR="$OMCTEST_WORK"
 # A small reference file instead of the published measurements, whose rows change with every battery.
 SPEECH_REFERENCE_MEASUREMENTS="$OMCTEST_FIXTURES/reference.tsv"
+# The live figures behind the Models window's suggestions, likewise fixed rather than published.
+SPEECH_REFERENCE_LIVE_MEASUREMENTS="$OMCTEST_FIXTURES/suggest-live.tsv"
 # Fake corpus fetch tools, which write a manifest instead of downloading hundreds of megabytes.
 SPEECH_FETCH_TOOLS_DIR="$OMCTEST_TESTS/helpers/fetch-tools"
 FAKE_FETCH_LOG="$OMCTEST_WORK/fake-fetch.log"
@@ -36,7 +38,7 @@ export SPEECH_OPEN_BIN SPEECH_OSASCRIPT_BIN FAKE_OPEN_LOG FAKE_OSASCRIPT_LOG FAK
 # The language picker falls back to the locale's language; pin it so the suite does not depend
 # on the machine it runs on.
 LANG="en_US.UTF-8"
-export SPEECH_BIN SPEECH_POLL_SCRIPT SPEECH_MODELS_POLL_SCRIPT SPEECH_APP_SUPPORT FAKE_SPEECH_FIXTURES FAKE_SPEECH_LOG SPEECH_TEST_RECORD_DIR SPEECH_REFERENCE_MEASUREMENTS LANG
+export SPEECH_BIN SPEECH_POLL_SCRIPT SPEECH_MODELS_POLL_SCRIPT SPEECH_APP_SUPPORT FAKE_SPEECH_FIXTURES FAKE_SPEECH_LOG SPEECH_TEST_RECORD_DIR SPEECH_REFERENCE_MEASUREMENTS SPEECH_REFERENCE_LIVE_MEASUREMENTS LANG
 
 if [ -z "$OMC_ACTIONUI_WINDOW_UUID" ]; then
     printf 'lib.test.speech.sh: no window uuid in the test shell\n' >&2

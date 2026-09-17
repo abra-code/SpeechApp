@@ -124,6 +124,9 @@ FLUIDAUDIO_LICENSE_SRC="$BUILD_DIR/checkouts/FluidAudio/LICENSE"
 TRANSCRIBE_LICENSE_SRC="$SPEECH_REPO/Sources/TranscribeCpp/LICENSE"
 TRANSCRIBE_NOTICES_SRC="$SPEECH_REPO/Sources/TranscribeCpp/THIRD-PARTY-LICENSES.md"
 MEASUREMENTS_SRC="$SPEECH_REPO/docs/benchmarks/measurements.tsv"
+# Live figures are published separately because they are a separate measurement; the Models
+# window suggests a live model from them.
+LIVE_MEASUREMENTS_SRC="$SPEECH_REPO/docs/benchmarks/live-measurements.tsv"
 FAMILY_PAGES_SRC="$SPEECH_REPO/docs/models"
 
 # -- 2. Deploy ---------------------------------------------------------------------------------
@@ -217,6 +220,10 @@ trap 'exit 143' TERM
 /bin/cp -f "$MEASUREMENTS_SRC" "$REFERENCE_STAGE/Reference/measurements.tsv"
 copy_status=$?
 [ "$copy_status" -eq 0 ] || fail "Could not stage measurements.tsv"
+[ -s "$LIVE_MEASUREMENTS_SRC" ] || fail "No $LIVE_MEASUREMENTS_SRC - run tools/live-report.py in the speech repo"
+/bin/cp -f "$LIVE_MEASUREMENTS_SRC" "$REFERENCE_STAGE/Reference/live-measurements.tsv"
+copy_status=$?
+[ "$copy_status" -eq 0 ] || fail "Could not stage live-measurements.tsv"
 page_count=0
 for page in "$FAMILY_PAGES_SRC"/*.md; do
     [ -f "$page" ] || continue
