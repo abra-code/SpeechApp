@@ -16,8 +16,10 @@ txt2="$OMCTEST_WORK/second - apple.transcriber.txt"
 # The record Speech keeps on a transcript it saved, by its tag.
 record_tag() { /usr/bin/xattr -p com.abracode.speech.transcript "$1" 2>/dev/null | /usr/bin/cut -d' ' -f1; }
 
-# A recording's row in the table: name <TAB> status <TAB> path.
-row_of() { ui_rows "$REC_TABLE" | /usr/bin/awk -F'\t' -v path="$1" '$3 == path { print $1 "|" $2 }'; }
+# A recording's row in the table is name <TAB> length <TAB> status <TAB> path. row_of gives its name
+# and status, length_of its length.
+row_of() { ui_rows "$REC_TABLE" | /usr/bin/awk -F'\t' -v path="$1" '$4 == path { print $1 "|" $3 }'; }
+length_of() { ui_rows "$REC_TABLE" | /usr/bin/awk -F'\t' -v path="$1" '$4 == path { print $2 }'; }
 # The sentence behind a row's status, which the status line shows when the recording is selected.
 detail_of() { pane_call recordings recording_detail "$(rec_pane)" "$1"; }
 # Transcribe does not transcribe a recording again while its last transcript is current. A section
@@ -177,6 +179,7 @@ run_batch
 check "the batch ran to its end" "0" "$?"
 check "two recordings were transcribed, one after the other" "2" "$(/usr/bin/grep -c ' transcribe ' "$FAKE_SPEECH_LOG")"
 check "the status sums it up" "Done. 2 saved beside the recordings." "$(ui_value "$REC_STATUS")"
+check "a recording afinfo cannot read gets its length from its transcription" "0:04" "$(length_of "$rec1")"
 check_exists "the first transcript is beside its recording, named after the model" "$txt1"
 check_exists "and the second" "$txt2"
 check "it is the text export of that recording's transcript" \
@@ -190,7 +193,7 @@ check "and hidden, with Record back" "0|1" "$(ui_visible "$REC_STOP_BTN")|$(ui_v
 check "the summary stays until something changes" "Done. 2 saved beside the recordings." "$(ui_value "$REC_STATUS")"
 
 section "selecting a recording shows its transcript, and Export and Copy work on it"
-omc_table_cell "$REC_TABLE" 3 "$rec1"
+omc_table_cell "$REC_TABLE" 4 "$rec1"
 omc_run speech.recordings.selected
 check "the status line says what Saved stands for" \
     "The transcript of interview take 1.wav is saved beside it as interview take 1 - apple.transcriber.txt." "$(ui_value "$REC_STATUS")"
@@ -198,10 +201,10 @@ pane_call recordings set_status "Transcribing second.m4a... 40%"
 omc_run speech.recordings.selected
 check "the table's own re-selection of the same row says nothing again" "Transcribing second.m4a... 40%" "$(ui_value "$REC_STATUS")"
 end_quiet_window
-omc_table_cell "$REC_TABLE" 3 ""
+omc_table_cell "$REC_TABLE" 4 ""
 omc_run speech.recordings.selected
 check "selecting nothing takes the detail away" "no note" "$(/bin/cat "$(rec_pane)/status.note" 2>/dev/null || echo no note)"
-omc_table_cell "$REC_TABLE" 3 "$rec1"
+omc_table_cell "$REC_TABLE" 4 "$rec1"
 omc_run speech.recordings.selected
 check "the transcript is one line per segment, trimmed, tabs flattened" \
     "The quick brown fox jumps over the lazy dog.
@@ -223,13 +226,13 @@ check_absent "a canceled Save panel exports nothing" "$FAKE_SPEECH_LOG"
 section "a selection that is not in the list is ignored, and an empty one is an echo while quiet"
 # The batch's last table render is seconds old; close its quiet window so this acts as the user.
 end_quiet_window
-omc_table_cell "$REC_TABLE" 3 "$OMCTEST_WORK/elsewhere.wav"
+omc_table_cell "$REC_TABLE" 4 "$OMCTEST_WORK/elsewhere.wav"
 omc_run speech.recordings.selected
 check_absent "a path not in the list clears the selection" "$(rec_pane)/selected.key"
-omc_table_cell "$REC_TABLE" 3 "$rec1"
+omc_table_cell "$REC_TABLE" 4 "$rec1"
 omc_run speech.recordings.selected
 pane_call recordings quiet_begin "$(rec_pane)" table
-omc_table_cell "$REC_TABLE" 3 ""
+omc_table_cell "$REC_TABLE" 4 ""
 omc_run speech.recordings.selected
 check_exists "an empty selection right after rows were replaced keeps the selection" "$(rec_pane)/selected.key"
 end_quiet_window
@@ -262,7 +265,7 @@ check "the row says why" \
     "interview take 1.wav|Not saved|The transcript of interview take 1.wav was not saved: interview take 1 - apple.transcriber.txt was edited after Speech wrote it." "$(row_of "$rec1")|$(detail_of "$rec1")"
 check_grep "the edit survives" "my own correction" "$txt1"
 check "the other recording was still saved" "second.m4a|Saved|The transcript of second.m4a is saved beside it as second - apple.transcriber.txt." "$(row_of "$rec2")|$(detail_of "$rec2")"
-omc_table_cell "$REC_TABLE" 3 "$rec1"
+omc_table_cell "$REC_TABLE" 4 "$rec1"
 omc_run speech.recordings.selected
 check "the unsaved transcript is still in the window" \
     "The quick brown fox jumps over the lazy dog.
@@ -446,7 +449,7 @@ check "the model and the shared language are kept" "apple.transcriber|en-US" "$(
 
 section "Join makes Export and Copy take every transcript in the list, in list order"
 end_quiet_window
-omc_table_cell "$REC_TABLE" 3 ""
+omc_table_cell "$REC_TABLE" 4 ""
 omc_run speech.recordings.selected
 check "with nothing selected and Join off, Export and Copy wait" "0|0" "$(ui_enabled "$REC_EXPORT_MENU")|$(ui_enabled "$REC_COPY_BTN")"
 omc_control "$REC_JOIN_TOGGLE" true
@@ -523,7 +526,7 @@ omc_run speech.recordings.model.changed
 end_quiet_window
 
 section "Remove takes the selected recording out of the list, and leaves its files alone"
-omc_table_cell "$REC_TABLE" 3 "$rec2"
+omc_table_cell "$REC_TABLE" 4 "$rec2"
 omc_run speech.recordings.selected
 omc_run speech.recordings.remove
 check "it is no longer listed" "no" "$(/usr/bin/grep -Fxq "$rec2" "$(rec_pane)/list.tsv" && echo yes || echo no)"
@@ -537,14 +540,14 @@ section "Remove finds a path with a backslash in it"
 slashed="$OMCTEST_WORK/take\\n1.wav"
 printf 'RIFF' > "$slashed"
 printf '%s\n' "$slashed" >> "$(rec_pane)/list.tsv"
-omc_table_cell "$REC_TABLE" 3 "$slashed"
+omc_table_cell "$REC_TABLE" 4 "$slashed"
 omc_run speech.recordings.selected
 omc_run speech.recordings.remove
 check "it is no longer listed" "no" "$(/usr/bin/grep -Fxq -- "$slashed" "$(rec_pane)/list.tsv" && echo yes || echo no)"
 check "the rest of the list is intact" "yes" "$(/usr/bin/grep -Fxq -- "$rec1" "$(rec_pane)/list.tsv" && echo yes || echo no)"
 
 section "Remove waits while a batch runs"
-omc_table_cell "$REC_TABLE" 3 "$rec1"
+omc_table_cell "$REC_TABLE" 4 "$rec1"
 omc_run speech.recordings.selected
 printf 'running' > "$(rec_pane)/batch"
 omc_run speech.recordings.remove
@@ -568,6 +571,29 @@ OMC_ACTIONUI_WINDOW_UUID="$saved_uuid"
 check "a new window was asked for" "1" "$(chain_asked speech.new)"
 check "with the recording handed to it" "$extra1" "$("$OMC_OMC_SUPPORT_PATH/pasteboard" SPEECH_OPEN_PATH get)"
 "$OMC_OMC_SUPPORT_PATH/pasteboard" SPEECH_OPEN_PATH set ""
+
+section "the Length column shows how long each recording is, and nothing for a file that is not audio"
+# A real 65-second WAV: 8000 Hz, 8 bits, one channel, 520000 bytes of silence after the header.
+long_take="$OMCTEST_WORK/long take.wav"
+printf 'RIFF\144\357\007\000WAVEfmt \020\000\000\000\001\000\001\000\100\037\000\000\100\037\000\000\001\000\010\000data\100\357\007\000' > "$long_take"
+/bin/dd if=/dev/zero bs=8000 count=65 2>/dev/null >> "$long_take"
+omc_drop "$long_take"
+omc_run speech.drop
+check "a recording's length, in minutes and seconds" "1:05" "$(length_of "$long_take")"
+check "the name and status stay in their columns" "long take.wav|" "$(row_of "$long_take")"
+not_audio="$OMCTEST_WORK/not audio.wav"
+printf 'RIFF not really audio' > "$not_audio"
+omc_drop "$not_audio"
+omc_run speech.drop
+check "a file afinfo cannot read, not yet transcribed, has no length" "not audio.wav||" "$(row_of "$not_audio")|$(length_of "$not_audio")"
+long_key="$(/sbin/md5 -q -s "$long_take")"
+check "the length is kept, so the table asks once" "1:05" "$(/bin/cat "$(rec_pane)/lengths/$long_key" 2>/dev/null)"
+check "under a minute, and past an hour" "0:59|1:02:07" "$(pane_call recordings format_length 59.9)|$(pane_call recordings format_length 3727.2)"
+end_quiet_window
+omc_table_cell "$REC_TABLE" 4 "$long_take"
+omc_run speech.recordings.selected
+omc_run speech.recordings.remove
+check_absent "Remove forgets the length" "$(rec_pane)/lengths/$long_key"
 
 section "closing the window removes its spool"
 omc_run speech.window.cancel

@@ -1,5 +1,5 @@
 # speech.recordings.selected - the selection in the recordings table changed. The table keeps each
-# recording's path in a hidden third column. The selected recording's last transcript in this
+# recording's path in a hidden fourth column. The selected recording's last transcript in this
 # window, if it has one, is shown beside the list, and what its Status stands for in the status line.
 #
 # Replacing the table's rows can report an empty selection that no one made. Inside the quiet
@@ -12,7 +12,7 @@ pane="$(pane_dir_for "$window_uuid" recordings)"
 [ -n "$window_uuid" ] && [ -d "$pane" ] || exit 0
 use_pane recordings
 
-path="${OMC_ACTIONUI_TABLE_160_COLUMN_3_VALUE:-}"
+path="${OMC_ACTIONUI_TABLE_160_COLUMN_4_VALUE:-}"
 if [ -n "$path" ]; then
     /usr/bin/grep -Fxq -- "$path" "$pane/list.tsv" 2>/dev/null
     listed=$?

@@ -137,7 +137,7 @@
       "COMMAND_ID": "speech.recordings.selected",
       "EXECUTION_MODE": "exe_script_file",
       "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_TABLE_160_COLUMN_3_VALUE": ""
+        "OMC_ACTIONUI_TABLE_160_COLUMN_4_VALUE": ""
       }
     },
     {

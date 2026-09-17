@@ -1258,6 +1258,7 @@ reflect_run_end() {   # $1 = pane dir
 #   batch.model, batch.language, batch.total, batch.done   the batch's model, language and count
 #   batch.id       the last batch, so its summary counts only the recordings it reached
 #   join           1 while the Join checkbox is on: Export and Copy take every transcript in the list
+#   lengths/<key> the recording's length as the Length column shows it (recording_length)
 #   status.note    how the last batch or recording ended, shown until something changes
 #   selected.key   the item key of the selected recording
 #   capture        the name of the directory of the recording being made, or last made
@@ -1319,6 +1320,7 @@ remove_recording() {   # $1 = pane dir, $2 = path
     /bin/mv -f "$1/list.tsv.tmp" "$1/list.tsv"
     local _key="$(item_key "$2")"
     /bin/rm -rf "$1/items/$_key"
+    /bin/rm -f "$1/lengths/$_key"
     [ "$(read_state "$1/selected.key")" = "$_key" ] && /bin/rm -f "$1/selected.key"
     /bin/rm -f "$1/status.note"
 }
@@ -1407,9 +1409,46 @@ show_recording_detail() {   # $1 = pane dir, $2 = path; empty when nothing is se
     /bin/rm -f "$1/detail.note"
 }
 
+# A length as the Length column shows it: "4:05", or "1:02:07" past an hour. Unlike format_clock,
+# which counts a job's minutes as it runs, a recording can run to hours.
+format_length() {   # $1 = seconds
+    /usr/bin/awk -v s="$1" 'BEGIN {
+        s = int(s)
+        if (s >= 3600) printf "%d:%02d:%02d", int(s / 3600), int(s / 60) % 60, s % 60
+        else printf "%d:%02d", int(s / 60), s % 60
+    }'
+}
+
+# A recording's length for the Length column: "4:05" (format_length); empty when the
+# file cannot be read as audio. afinfo reads only the file's header. The answer is kept in
+# <pane>/lengths/<key>, empty or not, so the table, which is rebuilt every tick, asks once per
+# recording. Transcribing a recording again, which is when a changed recording is noticed, asks anew.
+recording_length() {   # $1 = pane dir, $2 = path
+    local _cache="$1/lengths/$(item_key "$2")"
+    if [ ! -f "$_cache" ]; then
+        /bin/mkdir -p "$1/lengths"
+        local _seconds="$(/usr/bin/afinfo "$2" 2>/dev/null | /usr/bin/awk '$1 == "estimated" && $2 == "duration:" { print $3; exit }')"
+        local _length=""
+        [ -n "$_seconds" ] && _length="$(format_length "$_seconds")"
+        printf '%s' "$_length" > "$_cache"
+    fi
+    read_state "$_cache"
+}
+
+# afinfo cannot open every file speech can transcribe: a video, for one. Once such a recording has
+# been transcribed, its length is the audio_seconds_total speech reported.
+fill_length_from_run() {   # $1 = pane dir, $2 = run dir
+    local _key="$(item_key "$(read_state "$2/source.path")")"
+    [ -s "$1/lengths/$_key" ] && return 0
+    local _seconds="$("$jq" -r 'select(.type == "progress") | .audio_seconds_total // empty' "$2/events.jsonl" 2>/dev/null | /usr/bin/tail -1)"
+    case "$_seconds" in ''|*[!0-9.eE+-]*) return 0 ;; esac
+    /bin/mkdir -p "$1/lengths"
+    printf '%s' "$(format_length "$_seconds")" > "$1/lengths/$_key"
+}
+
 # Push the list into the table when a row changed, then put the selection back: a table whose
-# rows are replaced cannot be trusted to keep it. Each row is name, status and the path, which
-# the table keeps as a hidden third column. The rows are built under a name of this process's
+# rows are replaced cannot be trusted to keep it. Each row is name, length, status and the path,
+# which the table keeps as a hidden fourth column. The rows are built under a name of this process's
 # own: a handler and the poller can render at the same time.
 render_recordings_table() {   # $1 = pane dir
     local _rows="$1/rows.tsv.tmp.$$"
@@ -1417,7 +1456,8 @@ render_recordings_table() {   # $1 = pane dir
     local _path
     while IFS= read -r _path; do
         [ -n "$_path" ] || continue
-        printf '%s\t%s\t%s\n' "$(/usr/bin/basename "$_path")" "$(recording_status "$1" "$_path")" "$_path" >> "$_rows"
+        printf '%s\t%s\t%s\t%s\n' "$(/usr/bin/basename "$_path")" "$(recording_length "$1" "$_path")" \
+            "$(recording_status "$1" "$_path")" "$_path" >> "$_rows"
     done < "$1/list.tsv"
     /usr/bin/cmp -s "$_rows" "$1/rows.tsv"
     local _same=$?
@@ -1432,7 +1472,7 @@ render_recordings_table() {   # $1 = pane dir
     [ -n "$_selected" ] || return 0
     _path="$(read_state "$1/items/$_selected/source.path")"
     [ -n "$_path" ] || _path="$(selected_recording_path "$1")"
-    [ -n "$_path" ] && "$dialog" "$window_uuid" "$REC_TABLE" omc_select_row_with_content "$_path" 3
+    [ -n "$_path" ] && "$dialog" "$window_uuid" "$REC_TABLE" omc_select_row_with_content "$_path" 4
     return 0
 }
 
@@ -1578,6 +1618,7 @@ start_item() {   # $1 = pane dir, $2 = path
         return 0
     fi
 
+    /bin/rm -f "$1/lengths/$_key"
     /bin/rm -rf "$_item"
     /bin/mkdir -p "$_item"
     local _mkdir_status=$?
@@ -1727,6 +1768,7 @@ advance_batch() {   # $1 = pane dir
             case "$(read_state "$_run/state")" in running|stopping) return 0 ;; esac
             if [ ! -f "$_run/settled" ]; then
                 [ "$(read_state "$_run/state")" = done ] && save_transcript "$_run"
+                fill_length_from_run "$1" "$_run"
                 : > "$_run/settled"
             fi
             /bin/rm -f "$1/current"

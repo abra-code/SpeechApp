@@ -29,7 +29,7 @@ $rec2"
 }
 
 select_recording() {   # $1 = path
-    omc_table_cell "$REC_TABLE" 3 "$1"
+    omc_table_cell "$REC_TABLE" 4 "$1"
     omc_run speech.recordings.selected
 }
 

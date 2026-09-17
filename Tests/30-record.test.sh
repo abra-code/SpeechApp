@@ -51,7 +51,7 @@ printf 'RIFF' > "$existing"
 printf '%s\n' "$existing" > "$(rec_pane)/list.tsv"
 pane_call recordings refresh_recordings_actions "$(rec_pane)"
 check "with a recording listed, Transcribe is enabled before recording starts" "1" "$(ui_enabled "$REC_TRANSCRIBE_BTN")"
-omc_table_cell "$REC_TABLE" 3 "$existing"
+omc_table_cell "$REC_TABLE" 4 "$existing"
 omc_run speech.recordings.selected
 check "with it selected, Remove is enabled before recording starts" "1" "$(ui_enabled "$REC_REMOVE_BTN")"
 check "and so is the model picker" "1" "$(ui_enabled "$REC_MODEL_PICKER")"
@@ -117,7 +117,7 @@ check "the recording ended as done: q is a tidy stop" "done" "$(/bin/cat "$dir/s
 check_exists "the file is there" "$output"
 check "it is the last in the list" "$output" "$(/usr/bin/tail -1 "$(rec_pane)/list.tsv")"
 check "and selected" "$(/sbin/md5 -q -s "$output")" "$(/bin/cat "$(rec_pane)/selected.key" 2>/dev/null)"
-check "the table lists it" "$(/usr/bin/basename "$output")" "$(ui_rows "$REC_TABLE" | /usr/bin/awk -F'\t' -v p="$output" '$3 == p { print $1 }')"
+check "the table lists it" "$(/usr/bin/basename "$output")" "$(ui_rows "$REC_TABLE" | /usr/bin/awk -F'\t' -v p="$output" '$4 == p { print $1 }')"
 check "the status says so" \
     "Recorded $(/usr/bin/basename "$output") (2.0 s). It is in the list, ready to transcribe." "$(ui_value "$REC_STATUS")"
 check "the clock is hidden again" "0" "$(ui_visible "$REC_CLOCK")"

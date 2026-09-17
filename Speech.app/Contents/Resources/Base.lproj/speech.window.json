@@ -277,16 +277,16 @@
                     "type": "VStack",
                     "properties": {
                       "spacing": 0,
-                      "frame": { "minWidth": 300, "idealWidth": 420, "maxHeight": "infinity" }
+                      "frame": { "minWidth": 300, "idealWidth": 480, "maxHeight": "infinity" }
                     },
                     "children": [
                       {
                         "type": "Table",
                         "id": 160,
                         "properties": {
-                          "columns": ["Recording", "Status"],
-                          "widths": [300, 100],
-                          "minWidths": [160, 80],
+                          "columns": ["Recording", "Length", "Status"],
+                          "widths": [300, 64, 100],
+                          "minWidths": [160, 48, 80],
                           "actionID": "speech.recordings.selected",
                           "frame": { "maxWidth": "infinity", "maxHeight": "infinity" }
                         }
