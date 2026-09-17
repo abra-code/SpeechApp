@@ -5,3 +5,4 @@ Speech.app/Contents/Resources/Reference
 Speech.app/Contents/_CodeSignature
 .DS_Store
 Private
+Speech.app/Contents/Library/Packages
