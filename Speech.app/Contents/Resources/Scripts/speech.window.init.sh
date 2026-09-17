@@ -22,6 +22,11 @@ if [ "$(setting_get recordings.join)" = 1 ]; then
     write_state "$spool/recordings/join" 1
     "$dialog" "$window_uuid" "$REC_JOIN_TOGGLE" true
 fi
+# The transcripts start at the size last picked, or the standard size when none was, or the saved
+# one is not offered any more.
+transcript_size="$(setting_get transcript.size)"
+[ -n "$(transcript_size_index "$transcript_size")" ] || transcript_size=$TRANSCRIPT_SIZE_DEFAULT
+apply_transcript_size "$spool" "$transcript_size"
 
 for control in "$LIVE_BTN" "$LIVE_EXPORT_MENU" "$LIVE_COPY_BTN" "$LIVE_MODEL_PICKER" "$LIVE_LANGUAGE_PICKER" \
     "$REC_TRANSCRIBE_BTN" "$REC_STOP_BTN" "$REC_EXPORT_MENU" "$REC_COPY_BTN" "$REC_REMOVE_BTN" "$REC_MODEL_PICKER" "$REC_LANGUAGE_PICKER" \

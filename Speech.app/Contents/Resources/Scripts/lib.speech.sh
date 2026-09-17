@@ -97,6 +97,7 @@ LIVE_BTN=42
 LIVE_CLOCK=43
 LIVE_EXPORT_MENU=50
 LIVE_COPY_BTN=55
+LIVE_SIZE_PICKER=56
 LIVE_TRANSCRIPT=200
 LIVE_STATUS=300
 # The card over the transcript while a session gets ready, and for a moment once it listens.
@@ -115,6 +116,7 @@ REC_RECORD_BTN=142
 REC_EXPORT_MENU=150
 REC_COPY_BTN=155
 REC_JOIN_TOGGLE=156
+REC_SIZE_PICKER=157
 REC_TABLE=160
 REC_ADD_BTN=161
 REC_REMOVE_BTN=162
@@ -350,6 +352,55 @@ setting_get() { read_state "$SETTINGS_DIR/$1"; }   # $1 = key
 setting_set() {   # $1 = key, $2 = value
     /bin/mkdir -p "$SETTINGS_DIR" 2>/dev/null
     write_state "$SETTINGS_DIR/$1" "$2"
+}
+
+# --- transcript text size ------------------------------------------------------------------------
+# One size for both transcripts, picked in either tab's size picker and kept for the next window.
+# The sizes, in points, are the pickers' options in order (speech.window.json); the first is the
+# size the window opens with. The font keeps the transcripts' own design: only its size changes.
+TRANSCRIPT_SIZES="13 15 18 24 32 40 48 64"
+TRANSCRIPT_SIZE_DEFAULT=13
+
+# The size at a picker's 1-based option index; empty for anything else.
+transcript_size_at() {   # $1 = picker value
+    case "$1" in ''|*[!0-9]*) return 0 ;; esac
+    local _index=0
+    local _size
+    for _size in $TRANSCRIPT_SIZES; do
+        _index=$((_index + 1))
+        if [ "$_index" -eq "$1" ]; then
+            printf '%s' "$_size"
+            return 0
+        fi
+    done
+}
+
+# The 1-based option index of a size; empty when the pickers do not offer it.
+transcript_size_index() {   # $1 = size in points
+    local _index=0
+    local _size
+    for _size in $TRANSCRIPT_SIZES; do
+        _index=$((_index + 1))
+        if [ "$_size" = "$1" ]; then
+            printf '%s' "$_index"
+            return 0
+        fi
+    done
+}
+
+# Show both transcripts at a size and put both pickers on it, and record the size in the window's
+# spool, where the handler tells a new size from the one the window already has. ActionUI fires a
+# picker's action only when the user picks, so putting the pickers on the size starts no handler.
+apply_transcript_size() {   # $1 = spool, $2 = size in points
+    local _index="$(transcript_size_index "$2")"
+    [ -n "$_index" ] || return 1
+    write_state "$1/transcript.size" "$2"
+    local _font="{\"size\":$2,\"design\":\"default\"}"
+    "$dialog" "$window_uuid" "$LIVE_TRANSCRIPT" omc_set_property font "$_font"
+    "$dialog" "$window_uuid" "$REC_TRANSCRIPT" omc_set_property font "$_font"
+    "$dialog" "$window_uuid" "$LIVE_SIZE_PICKER" "$_index"
+    "$dialog" "$window_uuid" "$REC_SIZE_PICKER" "$_index"
+    return 0
 }
 
 # A JSON string literal body: backslashes and quotes escaped, control characters dropped.

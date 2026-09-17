@@ -237,6 +237,11 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.transcript.size.changed",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.benchmark.corpus.changed",
       "EXECUTION_MODE": "exe_script_file",
       "ENVIRONMENT_VARIABLES": {

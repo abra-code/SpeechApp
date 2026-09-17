@@ -59,6 +59,25 @@
                       "frame": { "minWidth": 150, "idealWidth": 180 }
                     }
                   },
+                  {
+                    "type": "HStack",
+                    "properties": { "spacing": 4 },
+                    "children": [
+                      { "type": "Image", "properties": { "systemName": "textformat.size", "foregroundStyle": "secondary" } },
+                      {
+                        "type": "Picker",
+                        "id": 56,
+                        "properties": {
+                          "pickerStyle": "menu",
+                          "labelsHidden": true,
+                          "options": ["13 pt", "15 pt", "18 pt", "24 pt", "32 pt", "40 pt", "48 pt", "64 pt"],
+                          "help": "Size of the transcript text",
+                          "actionID": "speech.transcript.size.changed",
+                          "frame": { "width": 80 }
+                        }
+                      }
+                    ]
+                  },
                   { "type": "Spacer" },
                   {
                     "type": "Text",
@@ -218,6 +237,25 @@
                       "actionID": "speech.recordings.language.changed",
                       "frame": { "minWidth": 150, "idealWidth": 180 }
                     }
+                  },
+                  {
+                    "type": "HStack",
+                    "properties": { "spacing": 4 },
+                    "children": [
+                      { "type": "Image", "properties": { "systemName": "textformat.size", "foregroundStyle": "secondary" } },
+                      {
+                        "type": "Picker",
+                        "id": 157,
+                        "properties": {
+                          "pickerStyle": "menu",
+                          "labelsHidden": true,
+                          "options": ["13 pt", "15 pt", "18 pt", "24 pt", "32 pt", "40 pt", "48 pt", "64 pt"],
+                          "help": "Size of the transcript text",
+                          "actionID": "speech.transcript.size.changed",
+                          "frame": { "width": 80 }
+                        }
+                      }
+                    ]
                   },
                   { "type": "Spacer" },
                   {
