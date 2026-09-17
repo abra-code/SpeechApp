@@ -15,7 +15,7 @@ UI rendered by **ActionUI** - [github.com/abra-code/ActionUI](https://github.com
 - **Recordings** - a list of audio and video files, transcribed one after another. Drop files onto the window or the app, use File > Open..., "Open With" in Finder, or the "Transcribe with Speech" service, or press Record to capture a new recording into `~/Documents/Speech Recordings`. Each transcript is saved beside its recording as `<name> - <model id>.txt`, so one recording transcribed with several models keeps every transcript. An existing transcript is replaced only when Speech wrote it and neither it nor the recording has changed since; otherwise it is left alone and the Status column says why.
 - **Export** - plain text, SRT and WebVTT subtitles, or JSON with word and segment timings.
 - **Models** (Models > Manage Models...) - every model the `speech` catalog knows, grouped as built into macOS, downloaded, and available to download. Downloads keep going after the window is closed and resume after the app quits. A model is never deleted while it is downloading or transcribing. Add Model... adds a transcribe.cpp (ggml) model from Hugging Face that the list does not include: Speech downloads it, checks that it can transcribe with it, and lists it with the rest. The information button shows a model's details and its family's page, with reference measurements taken on one test Mac.
-- **Benchmark** - measuring models on this Mac, with standard test recordings and your own, arrives in a later update.
+- **Benchmarks** - measuring models on this Mac, with standard test recordings and your own, arrives in a later update.
 
 ## Models and engines
 

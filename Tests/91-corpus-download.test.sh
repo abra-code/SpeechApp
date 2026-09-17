@@ -1,5 +1,5 @@
 #!/bin/sh
-# 91-corpus-download.test.sh - downloading a standard corpus from the Benchmark tab: the Download
+# 91-corpus-download.test.sh - downloading a standard corpus from the Benchmarks tab: the Download
 # button and its alert, the worker running speech's fetch tool into the app's Corpora directory, the
 # corpus arriving in the picker, a failed download's reason, progress while the archive grows, a
 # stopped download ending the tool and what it waits for, the free-space refusal, and a download

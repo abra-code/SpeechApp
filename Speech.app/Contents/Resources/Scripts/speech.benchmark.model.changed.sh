@@ -1,4 +1,4 @@
-# speech.benchmark.model.changed - the Benchmark tab's Model picker changed (handle_model_changed in
+# speech.benchmark.model.changed - the Benchmarks tab's Model picker changed (handle_model_changed in
 # lib.speech.sh; its last option opens the Models window, as in the other tabs).
 
 . "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.benchmark.sh"

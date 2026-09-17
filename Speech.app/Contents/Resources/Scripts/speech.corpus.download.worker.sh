@@ -1,6 +1,6 @@
 # speech.corpus.download.worker.sh - downloads one standard corpus, for as long as that takes. Not an
 # OMC command: speech.benchmark.download.confirm starts it with /bin/sh, detached, so the download
-# goes on when the window closes, and every window's Benchmark tab shows its progress.
+# goes on when the window closes, and every window's Benchmarks tab shows its progress.
 #   args: <corpus id> <download dir>
 #
 # speech's own fetch tool does the work (tools/fetch-fleurs.sh or tools/fetch-librispeech.sh, named in

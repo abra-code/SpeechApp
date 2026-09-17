@@ -1,4 +1,4 @@
-# speech.benchmark.corpus.changed - the Benchmark tab's Corpus picker changed (handle_corpus_changed
+# speech.benchmark.corpus.changed - the Benchmarks tab's Corpus picker changed (handle_corpus_changed
 # in lib.speech.benchmark.sh).
 
 . "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.benchmark.sh"

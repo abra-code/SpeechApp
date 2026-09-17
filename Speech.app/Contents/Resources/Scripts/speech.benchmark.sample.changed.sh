@@ -1,4 +1,4 @@
-# speech.benchmark.sample.changed - the Benchmark tab's sample size changed: a quick sample or the
+# speech.benchmark.sample.changed - the Benchmarks tab's sample size changed: a quick sample or the
 # full set (handle_sample_changed in lib.speech.benchmark.sh).
 
 . "$OMC_APP_BUNDLE_PATH/Contents/Resources/Scripts/lib.speech.benchmark.sh"

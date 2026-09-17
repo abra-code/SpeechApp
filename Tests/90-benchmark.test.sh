@@ -1,5 +1,5 @@
 #!/bin/sh
-# 90-benchmark.test.sh - the Benchmark tab: the corpus, sample and model pickers, the reference
+# 90-benchmark.test.sh - the Benchmarks tab: the corpus, sample and model pickers, the reference
 # results for a corpus, a corpus that arrives on disk, the shared queue, the worker measuring it with
 # each result or failure recorded, progress and Stop, removing a waiting measurement, and a
 # measurement taken while a window was transcribing. The fake speech (helpers/fake-speech.sh) answers

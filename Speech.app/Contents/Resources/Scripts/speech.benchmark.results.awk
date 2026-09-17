@@ -1,4 +1,4 @@
-# speech.benchmark.results.awk - the Benchmark tab's results table for one corpus and sample size.
+# speech.benchmark.results.awk - the Benchmarks tab's results table for one corpus and sample size.
 #
 #   awk -F'\t' -v corpus=pl_pl -v sample=100 -v macos=26.6.2 \
 #       -v mlx=<mark> -v ggml=<mark> -v fluid=<mark> \

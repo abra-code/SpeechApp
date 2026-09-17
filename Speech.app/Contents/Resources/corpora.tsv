@@ -1,4 +1,4 @@
-# The standard corpora the Benchmark tab offers, in picker order. Columns:
+# The standard corpora the Benchmarks tab offers, in picker order. Columns:
 #   1 id <TAB> 2 title <TAB> 3 language tag <TAB> 4 manifest, relative to Application Support/Speech/Corpora <TAB> 5 recordings in the full set
 #   6 archive bytes to download <TAB> 7 bytes on disk once unpacked <TAB> 8 speech's fetch tool <TAB> 9 its argument
 #   10 the archive while it downloads, relative to the Corpora directory <TAB> 11 where it comes from and its license

@@ -127,7 +127,7 @@ REC_TRANSCRIPT=210
 REC_PREVIEW=215
 REC_STATUS=310
 
-# The Benchmark tab.
+# The Benchmarks tab.
 BENCH_CORPUS_PICKER=425
 BENCH_SAMPLE_PICKER=426
 BENCH_MODEL_PICKER=427
@@ -193,7 +193,7 @@ TRANSCRIPT_XATTR="com.abracode.speech.transcript"
 # status line of their own, and keep their state in a directory of their own inside the window's
 # spool. use_pane points the generic functions below at one of them: they write to MODEL_PICKER,
 # STATUS_TEXT and the rest, and read the saved model and language under the pane's own keys. The
-# Benchmark tab is a pane too, for its Model picker and status line; it has no language picker, since
+# Benchmarks tab is a pane too, for its Model picker and status line; it has no language picker, since
 # the corpus decides the language, and no transcript.
 
 use_pane() {   # $1 = live | recordings | benchmark
@@ -510,7 +510,7 @@ read_catalog() {   # $1 = spool
         return 1
     fi
     /bin/mv -f "$_spool/models.tsv.tmp" "$_spool/models.tsv"
-    # Every row's label, runnable or not, for the Benchmark tab's tables (id <TAB> label <TAB>
+    # Every row's label, runnable or not, for the Benchmarks tab's tables (id <TAB> label <TAB>
     # engine), and this Mac's macOS version, which decides whether an Apple row needs a note.
     "$jq" -r '.rows[] | [.id, .label, (.engine // "")] | map(tostring | gsub("[\t\r\n]"; " ")) | join("\t")' \
         "$_spool/catalog.json" > "$_spool/labels.tsv.tmp" 2>/dev/null
@@ -519,7 +519,7 @@ read_catalog() {   # $1 = spool
 }
 
 # A pane's own models.tsv, from the spool's: Recordings all of it, Live the rows that can stream,
-# Benchmark the rows that transcribe files in the language of the tab's corpus - a row whose
+# Benchmarks the rows that transcribe files in the language of the tab's corpus - a row whose
 # languages include that language under any region, or a row that lists none of its own.
 pane_models() {   # $1 = spool, $2 = live | recordings | benchmark
     /bin/mkdir -p "$1/$2"

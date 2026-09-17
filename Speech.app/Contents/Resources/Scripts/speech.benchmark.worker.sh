@@ -1,7 +1,7 @@
 # speech.benchmark.worker.sh - measures what waits in the benchmark queue, one measurement at a
 # time, for as long as that takes. Not an OMC command: speech.benchmark.run starts it with /bin/sh,
 # detached, so measuring goes on when the window that pressed Run closes. One worker serves the whole
-# app, and every window's Benchmark tab shows its progress.
+# app, and every window's Benchmarks tab shows its progress.
 #
 # Each measurement is `speech eval` over a corpus's manifest (measure_cell in
 # lib.speech.benchmark.sh). A finished or failed one is written to results.tsv and leaves the queue;

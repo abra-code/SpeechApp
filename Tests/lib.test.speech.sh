@@ -84,7 +84,7 @@ lib_call() {
       "$@" )
 }
 
-# The same for the Benchmark tab's library.
+# The same for the Benchmarks tab's library.
 bench_call() {
     ( . "$OMCTEST_APP/Contents/Resources/Scripts/lib.speech.benchmark.sh" >/dev/null 2>&1
       "$@" )

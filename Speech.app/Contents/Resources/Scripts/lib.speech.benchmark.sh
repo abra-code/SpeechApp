@@ -1,4 +1,4 @@
-# lib.speech.benchmark.sh - the Benchmark tab: measuring models on this Mac over a corpus, the
+# lib.speech.benchmark.sh - the Benchmarks tab: measuring models on this Mac over a corpus, the
 # queue one worker drains, and the table of results beside the reference measurements published
 # with speech. Sourced by the speech.benchmark.* handlers, the window poller (speech.poll.sh) and
 # the benchmark worker (speech.benchmark.worker.sh). POSIX /bin/sh (macOS bash 3.2): validate with

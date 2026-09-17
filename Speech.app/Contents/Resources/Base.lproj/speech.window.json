@@ -488,7 +488,7 @@
         },
         {
           "type": "Tab",
-          "properties": { "title": "Benchmark", "systemImage": "gauge.with.dots.needle.33percent" },
+          "properties": { "title": "Benchmarks", "systemImage": "gauge.with.dots.needle.33percent" },
           "content": {
             "type": "VStack",
             "properties": {

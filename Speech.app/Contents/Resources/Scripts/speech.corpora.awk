@@ -1,4 +1,4 @@
-# speech.corpora.awk - one pass over corpora.tsv for the Benchmark tab's Corpus picker.
+# speech.corpora.awk - one pass over corpora.tsv for the Benchmarks tab's Corpus picker.
 #
 # Every corpus FLEURS has a test split for is offered, which is more than a hundred rows, and the tab
 # asks on every poller tick which of them are on this Mac. A corpus_field call per row is an awk per
