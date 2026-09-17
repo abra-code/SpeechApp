@@ -380,17 +380,6 @@
                           { "type": "Divider", "properties": { "frame": { "height": 16 }, "padding": { "leading": 6, "trailing": 6 } } },
                           {
                             "type": "Button",
-                            "id": 164,
-                            "properties": {
-                              "systemImage": "play.fill",
-                              "buttonStyle": "borderless",
-                              "disabled": true,
-                              "help": "Play the selected recording",
-                              "actionID": "speech.recordings.play"
-                            }
-                          },
-                          {
-                            "type": "Button",
                             "id": 165,
                             "properties": {
                               "systemImage": "finder",
@@ -418,17 +407,32 @@
                     ]
                   },
                   {
-                    "type": "TextEditor",
-                    "id": 210,
-                    "properties": {
-                      "readOnly": true,
-                      "placeholder": "The selected recording's transcript appears here.",
-                      "font": { "size": 13, "design": "default" },
-                      "background": "background.secondary",
-                      "scrollContentBackground": "hidden",
-                      "cornerRadius": 8,
-                      "frame": { "minWidth": 260, "maxWidth": "infinity", "maxHeight": "infinity" }
-                    }
+                    "type": "VStack",
+                    "id": 216,
+                    "properties": { "spacing": 12, "padding": { "leading": 10 }, "frame": { "minWidth": 260, "maxWidth": "infinity", "maxHeight": "infinity" } },
+                    "children": [
+                      {
+                        "type": "VideoPlayer",
+                        "id": 215,
+                        "properties": {
+                          "cornerRadius": 8,
+                          "frame": { "maxWidth": "infinity", "minHeight": 166, "maxHeight": 166 }
+                        }
+                      },
+                      {
+                        "type": "TextEditor",
+                        "id": 210,
+                        "properties": {
+                          "readOnly": true,
+                          "placeholder": "The selected recording's transcript appears here.",
+                          "font": { "size": 13, "design": "default" },
+                          "background": "background.secondary",
+                          "scrollContentBackground": "hidden",
+                          "cornerRadius": 8,
+                          "frame": { "minWidth": 260, "maxWidth": "infinity", "maxHeight": "infinity" }
+                        }
+                      }
+                    ]
                   }
                 ]
               },

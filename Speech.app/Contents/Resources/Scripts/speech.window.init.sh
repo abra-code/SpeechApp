@@ -30,10 +30,11 @@ apply_transcript_size "$spool" "$transcript_size"
 
 for control in "$LIVE_BTN" "$LIVE_EXPORT_MENU" "$LIVE_COPY_BTN" "$LIVE_MODEL_PICKER" "$LIVE_LANGUAGE_PICKER" \
     "$REC_TRANSCRIBE_BTN" "$REC_STOP_BTN" "$REC_EXPORT_MENU" "$REC_COPY_BTN" "$REC_REMOVE_BTN" "$REC_MODEL_PICKER" "$REC_LANGUAGE_PICKER" \
-    "$REC_TRASH_BTN" "$REC_PLAY_BTN" "$REC_REVEAL_BTN" \
+    "$REC_TRASH_BTN" "$REC_REVEAL_BTN" \
     "$BENCH_CORPUS_PICKER" "$BENCH_SAMPLE_PICKER" "$BENCH_MODEL_PICKER" "$BENCH_ADD_BTN" "$BENCH_RUN_BTN" "$BENCH_STOP_BTN" "$BENCH_REMOVE_BTN"; do
     disable_ctrl "$control"
 done
+show_recording_preview ""
 for pane in live recordings benchmark; do
     use_pane "$pane"
     set_status "Reading the model list..."

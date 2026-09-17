@@ -56,9 +56,9 @@ if [ "$live" -ne 0 ]; then
 fi
 language="$(read_state "$pane/language.tag")"
 
-# Whatever the Recordings tab was playing stops before the microphone opens, or the session would
-# transcribe it.
-stop_playback "$(spool_dir_for "$window_uuid")/recordings"
+# Whatever the Recordings tab's preview was playing stops before the microphone opens, or the
+# session would transcribe it.
+stop_recording_preview "$(spool_dir_for "$window_uuid")/recordings"
 
 run="$(new_run_dir "$pane")"
 if [ -z "$run" ]; then

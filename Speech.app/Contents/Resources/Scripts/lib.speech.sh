@@ -34,7 +34,7 @@ NL="
 # Two environment namespaces share the SPEECH_ prefix and must not be treated as one set. The
 # ones read here (SPEECH_BIN, SPEECH_FINGERPRINT_BIN, SPEECH_POLL_SCRIPT,
 # SPEECH_MODELS_POLL_SCRIPT, SPEECH_LIVE_STDIN_SCRIPT, SPEECH_APP_SUPPORT, SPEECH_RECORDINGS_DIR,
-# SPEECH_REFERENCE_MEASUREMENTS, SPEECH_FETCH_TOOLS_DIR, SPEECH_AFPLAY_BIN, SPEECH_OPEN_BIN,
+# SPEECH_REFERENCE_MEASUREMENTS, SPEECH_FETCH_TOOLS_DIR, SPEECH_OPEN_BIN,
 # SPEECH_OSASCRIPT_BIN) are this applet's test hooks. SPEECH_MODELS_DIR and SPEECH_CATALOG_DIR, exported below, are the
 # speech binary's own production configuration.
 SPEECH_BIN="${SPEECH_BIN:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech}"
@@ -67,11 +67,9 @@ BENCHMARK_WORKER_SCRIPT="$SCRIPTS_DIR/speech.benchmark.worker.sh"
 FETCH_TOOLS_DIR="${SPEECH_FETCH_TOOLS_DIR:-$OMC_APP_BUNDLE_PATH/Contents/Support/speech-tools}"
 CORPUS_WORKER_SCRIPT="$SCRIPTS_DIR/speech.corpus.download.worker.sh"
 CORPUS_DOWNLOADS_DIR="$APP_SUPPORT/CorpusDownloads"
-# The three system tools the Recordings tab's file buttons reach for. They are named here for the
-# same reason the speech binary is: a real afplay plays out of the speakers of whatever Mac runs
-# the suite, a real open brings Finder forward over it, and a real osascript would move the test's
-# scratch recordings to the tester's own Trash.
-AFPLAY_BIN="${SPEECH_AFPLAY_BIN:-/usr/bin/afplay}"
+# The two system tools the Recordings tab's file buttons reach for. They are named here for the
+# same reason the speech binary is: a real open brings Finder forward over whatever Mac runs the
+# suite, and a real osascript would move the test's scratch recordings to the tester's own Trash.
 OPEN_BIN="${SPEECH_OPEN_BIN:-/usr/bin/open}"
 OSASCRIPT_BIN="${SPEECH_OSASCRIPT_BIN:-/usr/bin/osascript}"
 # Moving a recording to the Trash is Finder's job, asked in AppleScript so the file lands where the
@@ -121,12 +119,12 @@ REC_TABLE=160
 REC_ADD_BTN=161
 REC_REMOVE_BTN=162
 REC_TRASH_BTN=163
-REC_PLAY_BTN=164
 REC_REVEAL_BTN=165
 REC_UP_BTN=166
 REC_DOWN_BTN=167
 REC_CLOCK=170
 REC_TRANSCRIPT=210
+REC_PREVIEW=215
 REC_STATUS=310
 
 # The Benchmark tab.
@@ -253,8 +251,6 @@ sweep_sessions() {
         if [ "$_alive" -eq 0 ]; then
             _kept=1
         else
-            # A playback the app left running when it was killed has nothing else to stop it.
-            stop_playback "$_spool/recordings"
             /bin/rm -rf "$_spool"
         fi
     done
@@ -285,6 +281,32 @@ set_enabled() {   # $1 = view id, $2 = 1 to enable, anything else to disable
     else
         disable_ctrl "$1"
     fi
+}
+
+# The player above the Recordings transcript plays the selected recording, with the system's own
+# playback controls. It keeps a fixed height, and with nothing selected it plays a placeholder:
+# a one-frame movie saying "Track Preview" (Icon/make-track-preview-movie.swift). Without a URL it
+# says "Missing or invalid URL", and an image shows a crossed-out play button.
+PREVIEW_PLACEHOLDER="$OMC_APP_BUNDLE_PATH/Contents/Resources/track-preview.mov"
+
+# A recording path as the file URL the player takes: percent-encoded, slashes kept.
+recording_file_url() {   # $1 = recording path
+    "$jq" -rn --arg path "$1" '"file://" + ($path | @uri | gsub("%2F"; "/"))'
+}
+
+# Changing the player's URL replaces what it was playing, so callers show a recording only when the
+# selection really changed.
+show_recording_preview() {   # $1 = recording path; empty shows the placeholder
+    "$dialog" "$window_uuid" "$REC_PREVIEW" "$(recording_file_url "${1:-$PREVIEW_PLACEHOLDER}")"
+}
+
+# Stop the player before a microphone opens, so a recording or a live session does not take in its
+# sound: loading the placeholder stops it, and the selected recording is loaded again straight after.
+stop_recording_preview() {   # $1 = recordings pane dir
+    show_recording_preview ""
+    local _path="$(selected_recording_path "$1")"
+    [ -n "$_path" ] && show_recording_preview "$_path"
+    return 0
 }
 
 show_transcript_file() {   # $1 = file; empty or absent clears the transcript
@@ -1316,7 +1338,6 @@ reflect_run_end() {   # $1 = pane dir
 #   status.note    how the last batch or recording ended, shown until something changes
 #   selected.key   the item key of the selected recording
 #   capture        the name of the directory of the recording being made, or last made
-#   play.pid, play.path   the afplay playing a recording back, and which one
 
 item_key() { /sbin/md5 -q -s "$1"; }   # $1 = recording path
 
@@ -1610,63 +1631,6 @@ selected_recording_path() {   # $1 = pane dir
             return 0
         fi
     done < "$1/list.tsv"
-}
-
-# --- listening to a recording --------------------------------------------------------------------
-# One recording plays at a time, under an afplay of its own whose pid the pane keeps. afplay can
-# neither pause nor start part way in, so the button plays and stops rather than playing and
-# pausing: there is no position to come back to. The pid is checked by its argv before anything is
-# signaled, the way a speech pid is - between the tick that wrote it down and the tick that acts on
-# it the number can have been handed to something else.
-
-playback_pid_is_ours() {   # $1 = pid
-    case "$1" in ''|*[!0-9]*) return 1 ;; esac
-    local _args="$(/bin/ps -p "$1" -o args= 2>/dev/null)"
-    case "$_args" in
-        "$AFPLAY_BIN"|"$AFPLAY_BIN "*) return 0 ;;
-    esac
-    return 1
-}
-
-# The recording playing right now, or nothing when none is. Asked on every tick of the poller, so
-# it costs a stat rather than a /bin/ps while nothing is playing, which is nearly always.
-playing_path() {   # $1 = pane dir
-    [ -f "$1/play.pid" ] || return 0
-    playback_pid_is_ours "$(read_state "$1/play.pid")"
-    local _ours=$?
-    [ "$_ours" -eq 0 ] || return 0
-    read_state "$1/play.path"
-}
-
-stop_playback() {   # $1 = pane dir
-    local _pid="$(read_state "$1/play.pid")"
-    playback_pid_is_ours "$_pid"
-    local _ours=$?
-    [ "$_ours" -eq 0 ] && /bin/kill -TERM "$_pid" 2>/dev/null
-    /bin/rm -f "$1/play.pid" "$1/play.path"
-}
-
-# Play one recording, in place of whatever was playing. Returns non-zero when it did not start.
-start_playback() {   # $1 = pane dir, $2 = recording path
-    stop_playback "$1"
-    [ -f "$2" ] || return 1
-    "$AFPLAY_BIN" "$2" < /dev/null > /dev/null 2>&1 &
-    local _pid=$!
-    [ -n "$_pid" ] || return 1
-    write_state "$1/play.path" "$2"
-    write_state "$1/play.pid" "$_pid"
-    return 0
-}
-
-# Forget a playback that has ended on its own, so the button stops offering to stop it. Returns 0
-# when there was one to forget, which is what tells the caller the button has to be drawn again.
-reap_playback() {   # $1 = pane dir
-    [ -f "$1/play.pid" ] || return 1
-    playback_pid_is_ours "$(read_state "$1/play.pid")"
-    local _ours=$?
-    [ "$_ours" -eq 0 ] && return 1
-    /bin/rm -f "$1/play.pid" "$1/play.path"
-    return 0
 }
 
 # --- moving a recording to the Trash ---------------------------------------------------------------
@@ -2237,11 +2201,6 @@ poll_recordings() {   # $1 = spool
     fi
     advance_batch "$_pane"
     [ -f "$_pane/list.tsv" ] && render_recordings_table "$_pane"
-    # A playback that reached the end of the recording leaves its pid behind; forgetting it here is
-    # what turns the button from Stop back into Play.
-    reap_playback "$_pane"
-    local _reaped=$?
-    [ "$_reaped" -eq 0 ] && /bin/rm -f "$_pane/actions.sig"
     refresh_recordings_actions "$_pane"
 }
 
@@ -2476,10 +2435,9 @@ refresh_recordings_actions() {   # $1 = pane dir
     # enabled picker would show a choice the pane did not take.
     local _can_remove=0
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ -n "$_selected" ] && _can_remove=1
-    # The other three buttons work on the selected recording too. Trash waits for the same reasons
-    # Remove does, since it takes the recording out of the list as well. Play and Reveal change
-    # nothing and stay open through a batch; only an open microphone closes Play, which would
-    # otherwise play into the recording being made, or into the Live tab's session.
+    # The other buttons work on the selected recording too. Trash waits for the same reasons Remove
+    # does, since it takes the recording out of the list as well. Reveal changes nothing and stays
+    # open through a batch.
     local _can_trash=$_can_remove
     # Moving up and down waits with Remove as well, and stops at either end of the list.
     local _position=0
@@ -2488,21 +2446,15 @@ refresh_recordings_actions() {   # $1 = pane dir
     [ "$_position" -gt 1 ] && _can_up=1
     local _can_down=0
     [ "$_position" -ge 1 ] && [ "$_position" -lt "$_count" ] && _can_down=1
-    local _can_play=0
-    [ "$_recording" = 0 ] && [ "$_other_busy" = 0 ] && [ -n "$_selected" ] && _can_play=1
     local _can_reveal=0
     [ -n "$_selected" ] && _can_reveal=1
-    # 1 while the selected recording is the one playing, which is when the button offers to stop it.
-    local _playing="$(playing_path "$_pane")"
-    local _playing_selected=0
-    [ -n "$_playing" ] && [ "$(item_key "$_playing")" = "$_selected" ] && _playing_selected=1
     local _can_pick=0
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_models_ready" = 1 ] && [ -n "$_model" ] && _can_pick=1
     # The Model picker stays open with no model to offer: its last option opens the Models window.
     local _can_pick_model=0
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_models_ready" = 1 ] && _can_pick_model=1
 
-    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_can_trash$_can_play$_can_reveal$_playing_selected|$_can_up$_can_down|$_models_ready|$_batch|$_capture_state$_capture_stoppable|$_other_busy|$_count|$_selected|$_item_state|$_model|$_join$_joinable"
+    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_can_trash$_can_reveal|$_can_up$_can_down|$_models_ready|$_batch|$_capture_state$_capture_stoppable|$_other_busy|$_count|$_selected|$_item_state|$_model|$_join$_joinable"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
@@ -2515,16 +2467,7 @@ refresh_recordings_actions() {   # $1 = pane dir
     set_enabled "$REC_UP_BTN" "$_can_up"
     set_enabled "$REC_DOWN_BTN" "$_can_down"
     set_enabled "$REC_TRASH_BTN" "$_can_trash"
-    set_enabled "$REC_PLAY_BTN" "$_can_play"
     set_enabled "$REC_REVEAL_BTN" "$_can_reveal"
-    # One button plays and stops, and says which it is doing now.
-    if [ "$_playing_selected" = 1 ]; then
-        "$dialog" "$window_uuid" "$REC_PLAY_BTN" omc_set_property "systemImage" "stop.fill"
-        "$dialog" "$window_uuid" "$REC_PLAY_BTN" omc_set_property "help" "Stop playing this recording"
-    else
-        "$dialog" "$window_uuid" "$REC_PLAY_BTN" omc_set_property "systemImage" "play.fill"
-        "$dialog" "$window_uuid" "$REC_PLAY_BTN" omc_set_property "help" "Play the selected recording"
-    fi
     set_enabled "$REC_MODEL_PICKER" "$_can_pick_model"
     set_enabled "$REC_LANGUAGE_PICKER" "$_can_pick"
     if [ "$_active" = 1 ]; then

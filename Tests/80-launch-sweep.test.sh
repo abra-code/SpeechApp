@@ -60,18 +60,5 @@ check_absent "the first-run marker is gone" "$sessions/models-offered"
 check "the model is no longer in use" "1" \
     "$(models_call model_in_use ggml.whisper-large-v3-turbo@q8_0; echo $?)"
 
-section "A killed app's playback is stopped with its spool: nothing else would be left to stop it"
-reset_state
-stale_spool killed-app "$dead_pid"
-"$SPEECH_AFPLAY_BIN" "$OMCTEST_WORK/left-playing.wav" < /dev/null > /dev/null 2>&1 &
-afplay_pid=$!
-printf '%s' "$afplay_pid" > "$sessions/killed-app/recordings/play.pid"
-printf '%s' "$OMCTEST_WORK/left-playing.wav" > "$sessions/killed-app/recordings/play.path"
-omc_run app.will.launch
-check "the playback stopped" "dead" \
-    "$(omc_wait_for "! /bin/kill -0 $afplay_pid 2>/dev/null" > /dev/null; /bin/kill -0 "$afplay_pid" 2>/dev/null && printf 'alive' || printf 'dead')"
-check_absent "and the killed app's spool is gone" "$sessions/killed-app"
-/bin/kill -KILL "$afplay_pid" 2>/dev/null
-
 check "no writes to undeclared view ids" "" "$(ui_unknown_writes)"
 omctest_end

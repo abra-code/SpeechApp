@@ -36,8 +36,9 @@ if [ "$other_busy" -eq 0 ]; then
     exit 0
 fi
 
-# Whatever was playing stops before the microphone opens, or it would be in the new recording.
-stop_playback "$pane"
+# Whatever the preview was playing stops before the microphone opens, or it would be in the new
+# recording.
+stop_recording_preview "$pane"
 
 /bin/mkdir -p "$RECORDINGS_DIR"
 mkdir_status=$?

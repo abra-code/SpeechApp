@@ -1,11 +1,11 @@
 #!/bin/sh
-# 11-recordings-files.test.sh - the file buttons under the recordings list: play and stop, show in
-# the Finder, and move to the Trash with the alert that asks first. Taking a recording out of the
-# list, which is the minus button and touches no file, is covered in 10-recordings.test.sh.
+# 11-recordings-files.test.sh - the player that plays the selected recording, and the file
+# buttons under the recordings list: show in the Finder, and move to the Trash with the alert that
+# asks first. Taking a recording out of the list, which is the minus button and touches no file, is
+# covered in 10-recordings.test.sh.
 #
-# afplay, open and osascript are all fakes here (lib.test.speech.sh): the real ones would play out
-# of the speakers of whatever Mac runs this, bring the Finder forward over it, and move the scratch
-# recordings to the tester's own Trash.
+# open and osascript are fakes here (lib.test.speech.sh): the real ones would bring the Finder
+# forward over whatever Mac runs this, and move the scratch recordings to the tester's own Trash.
 . "${OMCTEST_LIB:?set OMCTEST_LIB, or run via: appletbuilder test}"
 . "$OMCTEST_TESTS/lib.test.speech.sh"
 
@@ -13,12 +13,11 @@ rec1="$OMCTEST_WORK/first.wav"
 rec2="$OMCTEST_WORK/second.m4a"
 gone_note="first.wav is no longer where it was. Take it out of the list, or add it again from its new place."
 
-# A fresh window with both recordings listed, nothing selected, nothing playing and no alert asked.
+# A fresh window with both recordings listed, nothing selected and no alert asked.
 open_tab() {
-    reap_fake_afplay
     reset_state
     alerts_reset
-    /bin/rm -f "$FAKE_AFPLAY_LOG" "$FAKE_OPEN_LOG" "$FAKE_OSASCRIPT_LOG"
+    /bin/rm -f "$FAKE_OPEN_LOG" "$FAKE_OSASCRIPT_LOG"
     /bin/rm -rf "$FAKE_TRASH_DIR"
     printf 'RIFF not really audio' > "$rec1"
     printf 'M4A not really audio either' > "$rec2"
@@ -33,145 +32,56 @@ select_recording() {   # $1 = path
     omc_run speech.recordings.selected
 }
 
-# The pid of the playback going on now, which a section kills to stand for reaching the end.
-play_pid() { /bin/cat "$(rec_pane)/play.pid" 2>/dev/null; }
-
-alive_or_dead() {   # $1 = pid
-    /bin/kill -0 "$1" 2>/dev/null && printf 'alive' || printf 'dead'
-}
-
 # ------------------------------------------------------------------------------------------------
-section "the three file buttons wait for a selection, and Play starts out offering to play"
+section "the player shows a placeholder until a recording is selected, then plays that recording's file URL"
 open_tab
-check "the window opens with all three closed" "0 0 0" \
-    "$(ui_enabled "$REC_PLAY_BTN") $(ui_enabled "$REC_REVEAL_BTN") $(ui_enabled "$REC_TRASH_BTN")"
-pane_call recordings refresh_recordings_actions "$(rec_pane)"
-check "and the poller leaves them closed with nothing selected" "0 0 0" \
-    "$(ui_enabled "$REC_PLAY_BTN") $(ui_enabled "$REC_REVEAL_BTN") $(ui_enabled "$REC_TRASH_BTN")"
-check "Play shows the play icon" "play.fill" "$(ui_prop "$REC_PLAY_BTN" systemImage)"
-check "and says what it does" "Play the selected recording" "$(ui_prop "$REC_PLAY_BTN" help)"
+placeholder_url="$(lib_call recording_file_url "$OMC_APP_BUNDLE_PATH/Contents/Resources/track-preview.mov")"
+check "the placeholder is bundled" "yes" "$([ -s "$OMC_APP_BUNDLE_PATH/Contents/Resources/track-preview.mov" ] && echo yes || echo no)"
+check "a new window shows the placeholder" "$placeholder_url" "$(ui_value "$REC_PREVIEW")"
+url1="file://$(printf '%s' "$rec1" | /usr/bin/sed 's/ /%20/g')"
+url2="file://$(printf '%s' "$rec2" | /usr/bin/sed 's/ /%20/g')"
 select_recording "$rec1"
-check "a selection opens all three" "1 1 1" \
-    "$(ui_enabled "$REC_PLAY_BTN") $(ui_enabled "$REC_REVEAL_BTN") $(ui_enabled "$REC_TRASH_BTN")"
-
-# ------------------------------------------------------------------------------------------------
-section "Play starts the selected recording, and the button then offers to stop it"
-omc_run speech.recordings.play
-check_status "play exits cleanly" 0
-check "afplay was given the recording" "$rec1" "$(/bin/cat "$FAKE_AFPLAY_LOG" 2>/dev/null)"
-check "the pane knows what is playing" "$rec1" "$(/bin/cat "$(rec_pane)/play.path" 2>/dev/null)"
-check "the button turns into a stop" "stop.fill" "$(ui_prop "$REC_PLAY_BTN" systemImage)"
-check "and says so" "Stop playing this recording" "$(ui_prop "$REC_PLAY_BTN" help)"
-
-section "pressing it again stops the playback"
-pid="$(play_pid)"
-omc_run speech.recordings.play
-check "the process was signaled" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" > /dev/null; alive_or_dead "$pid")"
-check_absent "the pane forgot the pid" "$(rec_pane)/play.pid"
-check "the button offers to play again" "play.fill" "$(ui_prop "$REC_PLAY_BTN" systemImage)"
-check "and afplay was not started a second time" "1" "$(/usr/bin/grep -c . "$FAKE_AFPLAY_LOG")"
-
-section "a playback that reaches the end of the recording turns the button back into Play"
-omc_run speech.recordings.play
-pid="$(play_pid)"
-/bin/kill -KILL "$pid" 2>/dev/null
-omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" > /dev/null
-poll_tick
-check_absent "the poller forgot it" "$(rec_pane)/play.pid"
-check "the button offers to play" "play.fill" "$(ui_prop "$REC_PLAY_BTN" systemImage)"
-
-section "playing follows the selection: choosing another recording stops it"
-omc_run speech.recordings.play
-pid="$(play_pid)"
+check "selecting a recording loads its file URL" "$url1" "$(ui_value "$REC_PREVIEW")"
 select_recording "$rec2"
-check "the playback stopped" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" > /dev/null; alive_or_dead "$pid")"
-check_absent "and nothing is playing" "$(rec_pane)/play.pid"
+check "selecting another loads that one" "$url2" "$(ui_value "$REC_PREVIEW")"
+check "a path with a space, a hash and a percent sign is encoded" \
+    "file:///x/Take%20%232%2050%25.m4a" "$(lib_call recording_file_url "/x/Take #2 50%.m4a")"
 
-section "choosing the recording that is already playing leaves it alone"
-omc_run speech.recordings.play
-pid="$(play_pid)"
+section "the table re-selecting the same row does not reload the player, which would stop it playing"
+writes_before="$(ui_calls "$url2")"
 select_recording "$rec2"
-check "it is still playing" "alive" "$(alive_or_dead "$pid")"
-check "and still the one the pane knows about" "$rec2" "$(/bin/cat "$(rec_pane)/play.path" 2>/dev/null)"
+check "no second write of the same recording" "$writes_before" "$(ui_calls "$url2")"
 
-section "taking a playing recording out of the list stops it"
+section "clearing the selection, Remove and Move to Trash put the placeholder in the player"
+select_recording ""
+end_quiet_window
+select_recording ""
+check "a cleared selection shows the placeholder" "$placeholder_url" "$(ui_value "$REC_PREVIEW")"
 select_recording "$rec2"
-omc_run speech.recordings.play
-pid="$(play_pid)"
+check "a selection loads it again" "$url2" "$(ui_value "$REC_PREVIEW")"
 omc_run speech.recordings.remove
-check "the playback went with it" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" > /dev/null; alive_or_dead "$pid")"
-check_absent "nothing is playing" "$(rec_pane)/play.pid"
+check "Remove shows the placeholder" "$placeholder_url" "$(ui_value "$REC_PREVIEW")"
+select_recording "$rec1"
+check "a selection loads it again" "$url1" "$(ui_value "$REC_PREVIEW")"
+omc_run speech.recordings.trash
+omc_run speech.recordings.trash.confirm
+check "Move to Trash shows the placeholder" "$placeholder_url" "$(ui_value "$REC_PREVIEW")"
 
-section "closing the window stops a playback, since nothing would be left to stop it with"
+section "starting Live stops the player, by loading the placeholder, and then loads the recording again"
 open_tab
 select_recording "$rec1"
-omc_run speech.recordings.play
-pid="$(play_pid)"
-omc_run speech.window.cancel
-check "the playback stopped" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" > /dev/null; alive_or_dead "$pid")"
-check_absent "the spool is gone" "$(spool)"
-
-# ------------------------------------------------------------------------------------------------
-section "nothing is played into an open microphone"
-open_tab
-select_recording "$rec1"
-# What the tab calls recording: a capture directory in the running state.
-/bin/mkdir -p "$(rec_pane)/capture-test"
-printf 'running' > "$(rec_pane)/capture-test/state"
-printf 'capture-test' > "$(rec_pane)/capture"
-omc_run speech.recordings.play
-check "afplay was not started" "" "$(/bin/cat "$FAKE_AFPLAY_LOG" 2>/dev/null)"
-check "and the status says why" \
-    "Stop the recording before playing one back, or the microphone will hear it." "$(ui_value "$REC_STATUS")"
-pane_call recordings refresh_recordings_actions "$(rec_pane)"
-check "Play is closed while the microphone is open" "0" "$(ui_enabled "$REC_PLAY_BTN")"
-/bin/rm -f "$(rec_pane)/capture"
-
-section "nor into a live session: Live closes Play, and starting one stops a playback"
-open_tab
-select_recording "$rec1"
-omc_run speech.recordings.play
-pid="$(play_pid)"
+writes_before="$(ui_calls "$url1")"
 omc_run speech.live
-check "starting Live stopped the playback" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" > /dev/null; alive_or_dead "$pid")"
-check_absent "and nothing is playing" "$(rec_pane)/play.pid"
-pane_call recordings refresh_recordings_actions "$(rec_pane)"
-check "Play is closed while the live session runs" "0" "$(ui_enabled "$REC_PLAY_BTN")"
-/bin/rm -f "$FAKE_AFPLAY_LOG"
-omc_run speech.recordings.play
-check "afplay was not started" "" "$(/bin/cat "$FAKE_AFPLAY_LOG" 2>/dev/null)"
-check "and the status says why" \
-    "Stop the live session before playing a recording back, or the microphone will hear it." "$(ui_value "$REC_STATUS")"
+check "the recording was loaded once more" "$((writes_before + 1))" "$(ui_calls "$url1")"
+check "and it is what the player holds" "$url1" "$(ui_value "$REC_PREVIEW")"
 omc_run speech.window.cancel
 
-section "quitting the app stops a playback: its afplay is not a speech process, and the spool goes"
-open_tab
-select_recording "$rec1"
-omc_run speech.recordings.play
-pid="$(play_pid)"
-omc_run app.will.terminate
-check "the playback stopped" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" > /dev/null; alive_or_dead "$pid")"
-check_absent "and the spools are gone" "$SPEECH_APP_SUPPORT/Sessions"
-
-section "a press that arrives while another is still being handled is a no-op, not a second afplay"
-open_tab
-select_recording "$rec1"
-/bin/mkdir "$(rec_pane)/play.lock"
-omc_run speech.recordings.play
-check "afplay was not started" "" "$(/bin/cat "$FAKE_AFPLAY_LOG" 2>/dev/null)"
-check_absent "and nothing is playing" "$(rec_pane)/play.pid"
-/bin/rmdir "$(rec_pane)/play.lock"
-omc_run speech.recordings.play
-check "once the first handler is done, a press plays" "$rec1" "$(/bin/cat "$(rec_pane)/play.path" 2>/dev/null)"
-check_absent "and the handler left no lock behind" "$(rec_pane)/play.lock"
-
-section "Play and Show in Finder stay open through a batch; Trash waits with Remove"
+section "Show in Finder stays open through a batch; Trash waits with Remove"
 open_tab
 select_recording "$rec1"
 printf 'running' > "$(rec_pane)/batch"
 pane_call recordings refresh_recordings_actions "$(rec_pane)"
-check "Play and Show in Finder change nothing, so they stay open" "1 1" \
-    "$(ui_enabled "$REC_PLAY_BTN") $(ui_enabled "$REC_REVEAL_BTN")"
+check "Show in Finder changes nothing, so it stays open" "1" "$(ui_enabled "$REC_REVEAL_BTN")"
 check "Trash and Remove both take the recording out of the list, so both wait" "0 0" \
     "$(ui_enabled "$REC_TRASH_BTN") $(ui_enabled "$REC_REMOVE_BTN")"
 /bin/rm -f "$(rec_pane)/batch"
@@ -239,16 +149,6 @@ check "the status carries the reason" \
     "Could not move first.wav to the Trash: Not authorized to send Apple events to Finder. (-1743)" \
     "$(ui_value "$REC_STATUS")"
 
-section "a recording that is playing is stopped before it is moved to the Trash"
-open_tab
-select_recording "$rec1"
-omc_run speech.recordings.play
-pid="$(play_pid)"
-omc_run speech.recordings.trash
-omc_run speech.recordings.trash.confirm
-check "the playback stopped" "dead" "$(omc_wait_for "! /bin/kill -0 $pid 2>/dev/null" > /dev/null; alive_or_dead "$pid")"
-check_exists "and the recording is in the Trash" "$FAKE_TRASH_DIR/first.wav"
-
 section "Trash waits while a batch runs, and so does a confirm that arrives after one started"
 open_tab
 select_recording "$rec1"
@@ -308,5 +208,4 @@ check "no table clobbered" "" "$(ui_suspect_writes)"
 check "no harness misuse" "" "$(ui_errors)"
 
 reap_fake
-reap_fake_afplay
 omctest_end

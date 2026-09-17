@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="400" viewBox="0 0 1320 400">
+  <!-- The one frame of Resources/track-preview.mov, which the Recordings tab's player shows with
+       nothing selected (make-track-preview-movie.swift). A dark gray close to the player's own, so
+       the player's letterboxing does not show around it, with the notes and "Track Preview". -->
+  <rect width="1320" height="400" fill="#262626"/>
+  <g fill="#9A9A9F" transform="translate(-37 69)">
+    <path d="M 470 70 L 560 52 L 560 170 A 26 20 -20 1 1 548 152 L 548 94 L 482 107 L 482 188 A 26 20 -20 1 1 470 170 Z"/>
+    <text x="600" y="168" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="56" font-weight="500">Track Preview</text>
+  </g>
+</svg>

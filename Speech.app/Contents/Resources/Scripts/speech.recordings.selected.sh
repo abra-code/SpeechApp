@@ -25,6 +25,7 @@ if [ -z "$path" ]; then
     [ "$quiet" -eq 0 ] && exit 0
     /bin/rm -f "$pane/selected.key"
     show_transcript_file ""
+    show_recording_preview ""
     show_recording_detail "$pane" ""
 else
     key="$(item_key "$path")"
@@ -34,14 +35,11 @@ else
     # The Status column keeps to a word or two; choosing a recording says the rest. Only a new
     # choice does: the table's own refresh re-selects the same row every time its rows change, and
     # would otherwise put this over the progress of a batch.
-    [ "$key" != "$previous" ] && show_recording_detail "$pane" "$path"
+    if [ "$key" != "$previous" ]; then
+        show_recording_preview "$path"
+        show_recording_detail "$pane" "$path"
+    fi
 fi
-
-# Playing follows the selection, so the play button always means the row the user is looking at and
-# nothing goes on sounding out of a row no one can see. Re-selecting the recording that is playing,
-# which is what the table's own refresh does every tick, leaves it alone.
-playing="$(playing_path "$pane")"
-[ -n "$playing" ] && [ "$playing" != "$path" ] && stop_playback "$pane"
 
 /bin/rm -f "$pane/actions.sig"
 refresh_recordings_actions "$pane"

@@ -34,8 +34,6 @@ if [ -L "$path" ]; then
 fi
 
 name="$(/usr/bin/basename "$path")"
-playing="$(playing_path "$pane")"
-[ "$playing" = "$path" ] && stop_playback "$pane"
 
 trash_file "$path" "$pane/trash.err"
 trash_status=$?
@@ -50,6 +48,7 @@ fi
 
 remove_recording "$pane" "$path"
 show_transcript_file ""
+show_recording_preview ""
 render_recordings_table "$pane"
 "$dialog" "$window_uuid" "$REC_TABLE" omc_deselect
 note_status "$pane" "Moved $name to the Trash."

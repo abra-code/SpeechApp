@@ -157,11 +157,6 @@
     },
     {
       "NAME": "Speech",
-      "COMMAND_ID": "speech.recordings.play",
-      "EXECUTION_MODE": "exe_script_file"
-    },
-    {
-      "NAME": "Speech",
       "COMMAND_ID": "speech.recordings.reveal",
       "EXECUTION_MODE": "exe_script_file"
     },
