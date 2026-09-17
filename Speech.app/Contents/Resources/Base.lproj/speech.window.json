@@ -35,25 +35,22 @@
                 "type": "HStack",
                 "properties": { "spacing": 8 },
                 "children": [
-                  { "type": "Text", "properties": { "text": "Model", "foregroundStyle": "secondary" } },
                   {
                     "type": "Picker",
                     "id": 25,
                     "properties": {
+                      "title": "Model",
                       "pickerStyle": "menu",
-                      "labelsHidden": true,
                       "options": ["Loading..."],
                       "actionID": "speech.model.changed",
                       "frame": { "minWidth": 260, "idealWidth": 340 }
                     }
                   },
-                  { "type": "Text", "properties": { "text": "Language", "foregroundStyle": "secondary" } },
                   {
                     "type": "Picker",
                     "id": 26,
                     "properties": {
                       "pickerStyle": "menu",
-                      "labelsHidden": true,
                       "options": ["Automatic"],
                       "actionID": "speech.language.changed",
                       "frame": { "minWidth": 150, "idealWidth": 180 }
@@ -214,25 +211,22 @@
                 "type": "HStack",
                 "properties": { "spacing": 8 },
                 "children": [
-                  { "type": "Text", "properties": { "text": "Model", "foregroundStyle": "secondary" } },
                   {
                     "type": "Picker",
                     "id": 125,
                     "properties": {
+                      "title": "Model",
                       "pickerStyle": "menu",
-                      "labelsHidden": true,
                       "options": ["Loading..."],
                       "actionID": "speech.recordings.model.changed",
                       "frame": { "minWidth": 260, "idealWidth": 340 }
                     }
                   },
-                  { "type": "Text", "properties": { "text": "Language", "foregroundStyle": "secondary" } },
                   {
                     "type": "Picker",
                     "id": 126,
                     "properties": {
                       "pickerStyle": "menu",
-                      "labelsHidden": true,
                       "options": ["Automatic"],
                       "actionID": "speech.recordings.language.changed",
                       "frame": { "minWidth": 150, "idealWidth": 180 }
@@ -501,27 +495,15 @@
                 "type": "HStack",
                 "properties": { "spacing": 8 },
                 "children": [
-                  { "type": "Text", "properties": { "text": "Corpus", "foregroundStyle": "secondary", "frame": { "width": 48, "alignment": "leading" } } },
                   {
                     "type": "Picker",
                     "id": 425,
                     "properties": {
+                      "title": "Corpus",
                       "pickerStyle": "menu",
-                      "labelsHidden": true,
                       "options": ["Loading..."],
                       "actionID": "speech.benchmark.corpus.changed",
-                      "frame": { "minWidth": 260, "idealWidth": 340 }
-                    }
-                  },
-                  {
-                    "type": "Picker",
-                    "id": 426,
-                    "properties": {
-                      "pickerStyle": "menu",
-                      "labelsHidden": true,
-                      "options": ["Quick sample"],
-                      "actionID": "speech.benchmark.sample.changed",
-                      "frame": { "minWidth": 200, "idealWidth": 240 }
+                      "frame": { "minWidth": 260, "idealWidth": 420 }
                     }
                   },
                   {
@@ -539,7 +521,7 @@
                     "type": "Button",
                     "id": 445,
                     "properties": {
-                      "title": "Show in Finder",
+                      "title": "Show",
                       "systemImage": "finder",
                       "buttonStyle": "bordered",
                       "disabled": true,
@@ -548,57 +530,6 @@
                     }
                   },
                   { "type": "Spacer" }
-                ]
-              },
-              {
-                "type": "HStack",
-                "properties": { "spacing": 8 },
-                "children": [
-                  { "type": "Text", "properties": { "text": "Model", "foregroundStyle": "secondary", "frame": { "width": 48, "alignment": "leading" } } },
-                  {
-                    "type": "Picker",
-                    "id": 427,
-                    "properties": {
-                      "pickerStyle": "menu",
-                      "labelsHidden": true,
-                      "options": ["Loading..."],
-                      "actionID": "speech.benchmark.model.changed",
-                      "frame": { "minWidth": 260, "idealWidth": 340 }
-                    }
-                  },
-                  {
-                    "type": "Button",
-                    "id": 443,
-                    "properties": {
-                      "title": "Add to Queue",
-                      "systemImage": "plus",
-                      "buttonStyle": "bordered",
-                      "disabled": true,
-                      "actionID": "speech.benchmark.add"
-                    }
-                  },
-                  { "type": "Spacer" },
-                  {
-                    "type": "Button",
-                    "id": 441,
-                    "properties": {
-                      "title": "Stop",
-                      "buttonStyle": "bordered",
-                      "disabled": true,
-                      "actionID": "speech.benchmark.stop"
-                    }
-                  },
-                  {
-                    "type": "Button",
-                    "id": 440,
-                    "properties": {
-                      "title": "Run",
-                      "systemImage": "play.fill",
-                      "buttonStyle": "borderedProminent",
-                      "disabled": true,
-                      "actionID": "speech.benchmark.run"
-                    }
-                  }
                 ]
               },
               {
@@ -620,10 +551,71 @@
                     "properties": {
                       "spacing": 4,
                       "alignment": "leading",
-                      "frame": { "minHeight": 110, "idealHeight": 160, "maxWidth": "infinity" }
+                      "frame": { "minHeight": 165, "idealHeight": 215, "maxWidth": "infinity" }
                     },
                     "children": [
-                      { "type": "Text", "properties": { "text": "Queue", "font": "headline", "padding": { "top": 8 } } },
+                      {
+                        "type": "HStack",
+                        "properties": { "spacing": 8, "padding": { "top": 18, "bottom": 4 } },
+                        "children": [
+                          {
+                            "type": "Picker",
+                            "id": 427,
+                            "properties": {
+                              "title": "Model",
+                              "pickerStyle": "menu",
+                              "options": ["Loading..."],
+                              "actionID": "speech.benchmark.model.changed",
+                              "frame": { "minWidth": 260, "idealWidth": 340, "maxWidth": 340 }
+                            }
+                          },
+                          {
+                            "type": "Picker",
+                            "id": 426,
+                            "properties": {
+                              "pickerStyle": "menu",
+                              "labelsHidden": true,
+                              "options": ["Quick sample"],
+                              "actionID": "speech.benchmark.sample.changed",
+                              "frame": { "minWidth": 200, "idealWidth": 240 }
+                            }
+                          },
+                          {
+                            "type": "Button",
+                            "id": 443,
+                            "properties": {
+                              "title": "Queue",
+                              "systemImage": "plus",
+                              "buttonStyle": "bordered",
+                              "disabled": true,
+                              "help": "Add this model, corpus and sample size to the queue",
+                              "actionID": "speech.benchmark.add"
+                            }
+                          },
+                          { "type": "Spacer" },
+                          {
+                            "type": "Button",
+                            "id": 441,
+                            "properties": {
+                              "title": "Stop",
+                              "buttonStyle": "bordered",
+                              "disabled": true,
+                              "actionID": "speech.benchmark.stop"
+                            }
+                          },
+                          {
+                            "type": "Button",
+                            "id": 440,
+                            "properties": {
+                              "title": "Run",
+                              "systemImage": "play.fill",
+                              "buttonStyle": "borderedProminent",
+                              "disabled": true,
+                              "actionID": "speech.benchmark.run"
+                            }
+                          }
+                        ]
+                      },
                       {
                         "type": "Table",
                         "id": 470,

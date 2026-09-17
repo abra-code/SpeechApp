@@ -1,4 +1,4 @@
-# speech.benchmark.reveal - Show in Finder: selects the tab's corpus folder in the Finder. A corpus
+# speech.benchmark.reveal - Show: selects the tab's corpus folder in the Finder. A corpus
 # that has left this Mac since the tab last looked says so rather than opening a Finder window on
 # nothing; the next tick offers Download again.
 

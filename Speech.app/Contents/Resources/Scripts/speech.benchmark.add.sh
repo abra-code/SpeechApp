@@ -1,4 +1,4 @@
-# speech.benchmark.add - Add to Queue: the tab's model, corpus and sample size join the benchmark
+# speech.benchmark.add - Queue: the tab's model, corpus and sample size join the benchmark
 # queue, which every window shares. A running worker takes it when it reaches it; otherwise Run
 # starts measuring.
 
