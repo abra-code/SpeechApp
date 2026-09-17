@@ -4,6 +4,15 @@
       "NAME": "Speech",
       "ACTIVATION_MODE": "act_always",
       "EXECUTION_MODE": "exe_script_file",
+      "MULTIPLE_OBJECT_SETTINGS": {
+        "PROCESSING_MODE": "proc_together",
+        "SEPARATOR": "\\n",
+        "SORT_METHOD": "sort_by_name",
+        "SORT_OPTIONS": {
+          "COMPARE_CASE_INSENSITIVE": true,
+          "COMPARE_NUMERICAL": true
+        }
+      },
       "REQUIRED_OMC_VERSION": "5.1",
       "REQUIRED_MAC_OS_MIN_VERSION": "15.0"
     },
@@ -43,7 +52,16 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.service.file",
-      "EXECUTION_MODE": "exe_script_file"
+      "EXECUTION_MODE": "exe_script_file",
+      "MULTIPLE_OBJECT_SETTINGS": {
+        "PROCESSING_MODE": "proc_together",
+        "SEPARATOR": "\\n",
+        "SORT_METHOD": "sort_by_name",
+        "SORT_OPTIONS": {
+          "COMPARE_CASE_INSENSITIVE": true,
+          "COMPARE_NUMERICAL": true
+        }
+      }
     },
     {
       "NAME": "Speech",
