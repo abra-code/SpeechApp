@@ -38,10 +38,7 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.drop",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_TRIGGER_CONTEXT": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -51,18 +48,12 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.model.changed",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_25_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.language.changed",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_26_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -119,26 +110,17 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.recordings.model.changed",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_125_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.recordings.language.changed",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_126_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.recordings.selected",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_TABLE_160_COLUMN_4_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -230,10 +212,7 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.recordings.join.changed",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_156_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -243,26 +222,17 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.benchmark.corpus.changed",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_425_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.benchmark.sample.changed",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_426_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.benchmark.model.changed",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_427_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -297,10 +267,7 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.benchmark.queue.selected",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_TABLE_470_COLUMN_4_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -332,18 +299,12 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.models.download",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_TRIGGER_VIEW_ID": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.models.delete",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_TRIGGER_VIEW_ID": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -353,10 +314,7 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.models.info",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_TRIGGER_VIEW_ID": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -366,10 +324,7 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.models.show",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_TRIGGER_VIEW_ID": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
@@ -379,11 +334,7 @@
     {
       "NAME": "Speech",
       "COMMAND_ID": "speech.models.add.start",
-      "EXECUTION_MODE": "exe_script_file",
-      "ENVIRONMENT_VARIABLES": {
-        "OMC_ACTIONUI_VIEW_4110_VALUE": "",
-        "OMC_ACTIONUI_VIEW_4111_VALUE": ""
-      }
+      "EXECUTION_MODE": "exe_script_file"
     },
     {
       "NAME": "Speech",
