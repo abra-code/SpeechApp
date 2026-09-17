@@ -168,6 +168,7 @@ CARD_STATE=3
 CARD_DOWNLOAD=4
 CARD_DELETE=5
 CARD_INFO=6
+CARD_SHOW=7
 
 # The tabs, by their 0-based position in the TabView.
 TAB_INDEX_RECORDINGS=1
@@ -1020,7 +1021,7 @@ process_events() {   # $1 = pane dir
                 else
                     case "$_phase" in
                         downloading) _status="Downloading the model... ${_percent:-0}%" ;;
-                        compiling)   _status="Preparing the model (the first run of a model is the slow one)..." ;;
+                        compiling)   _status="Preparing the model (may be slow on first run)..." ;;
                         installing)  _status="Installing the model... ${_percent:-0}%" ;;
                         *)           _status="Checking the model..." ;;
                     esac

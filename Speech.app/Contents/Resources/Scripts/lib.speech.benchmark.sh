@@ -651,7 +651,7 @@ benchmark_progress_text() {   # $1 = pane dir, $2 = cell name
                     _text="Installing the model, ${_percent:-0}%"
                 fi
                 ;;
-            compiling) _text="Preparing the model (the first run of a model is the slow one)" ;;
+            compiling) _text="Preparing the model (may be slow on first run)" ;;
             *) _text="Loading the model" ;;
         esac
     fi

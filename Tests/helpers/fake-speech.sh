@@ -13,6 +13,8 @@
 #   FAKE_SPEECH_FAIL_FILE  a recording that fails as in fail mode while every other one succeeds
 #   FAKE_SPEECH_CATALOG    a writable copy of catalog.json to answer `catalog` from instead;
 #                          `models download` and `models delete` then change the row's state in it
+#   FAKE_SPEECH_MODELS_DIR the folder `models status` puts a model's path under
+#                          (default /nonexistent/Models)
 #   FAKE_SPEECH_DOWNLOAD   `models download` behavior: ok (default), fail (an error event, exit 1),
 #                          or hang (one progress event, then wait to be signaled)
 #   FAKE_SPEECH_DELETE     `models delete` behavior: ok (default) or fail (a message, exit 1)
@@ -129,7 +131,7 @@ case "$verb" in
                 exit 0
                 ;;
             status)
-                printf '{"model":"%s","path":"/nonexistent/Models/%s","state":"installed","t":0.01,"type":"model.entry"}\n' "$id" "$id"
+                printf '{"model":"%s","path":"%s/%s","state":"installed","t":0.01,"type":"model.entry"}\n' "$id" "${FAKE_SPEECH_MODELS_DIR:-/nonexistent/Models}" "$id"
                 exit 0
                 ;;
             add)

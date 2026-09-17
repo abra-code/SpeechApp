@@ -360,6 +360,14 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.models.show",
+      "EXECUTION_MODE": "exe_script_file",
+      "ENVIRONMENT_VARIABLES": {
+        "OMC_ACTIONUI_TRIGGER_VIEW_ID": ""
+      }
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.models.add",
       "EXECUTION_MODE": "exe_script_file"
     },

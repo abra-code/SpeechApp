@@ -434,6 +434,13 @@ delete_refusal() {   # $1 = spool, $2 = row
 
 # --- the information sheet -----------------------------------------------------------------------
 
+# Where speech keeps a model's files, or downloads them to: a folder. Prints nothing when speech
+# does not say.
+model_path() {   # $1 = model id
+    "$SPEECH_BIN" --json models status "$1" 2>/dev/null \
+        | "$jq" -r 'select(.type == "model.entry") | .path // empty' 2>/dev/null
+}
+
 # A model's information as Markdown: what the catalog says about the row, where its files are, and
 # the model family's page from Resources/Reference/models, which holds the reference measurements.
 model_info_markdown() {   # $1 = spool, $2 = row
@@ -488,7 +495,7 @@ model_info_markdown() {   # $1 = spool, $2 = row
     fi
     [ -n "$_source" ] && printf -- '- **Source:** [%s](https://huggingface.co/%s)\n' "$_source" "$_source"
     if [ "$_state" != system_managed ]; then
-        local _path="$("$SPEECH_BIN" --json models status "$_id" 2>/dev/null | "$jq" -r 'select(.type == "model.entry") | .path // empty' 2>/dev/null)"
+        local _path="$(model_path "$_id")"
         if [ -n "$_path" ] && [ "$_state" = installed ]; then
             printf -- '- **Location:** %s\n' "$_path"
         elif [ -n "$_path" ]; then

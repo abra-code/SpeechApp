@@ -28,7 +28,7 @@
       "properties": { "frame": { "maxWidth": "infinity", "maxHeight": "infinity" } },
       "content": {
         "type": "VStack",
-        "properties": { "spacing": 16, "alignment": "leading", "frame": { "maxWidth": "infinity" } },
+        "properties": { "spacing": 16, "alignment": "leading", "padding": { "trailing": 8 }, "frame": { "maxWidth": "infinity" } },
         "children": [
           {
             "type": "VStack",

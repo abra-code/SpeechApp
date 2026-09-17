@@ -10,10 +10,10 @@
 us="$(printf '\037')"
 catalog_copy="$OMCTEST_WORK/catalog.json"
 
-# The ids the Models window mints at run time: eight cards, each with its parts.
+# The ids the Models window mints at run time: eight cards, each with its parts (Show included).
 card_ids=""
 for row in 1 2 3 4 5 6 7 8; do
-    for offset in 0 1 2 3 4 5 6; do
+    for offset in 0 1 2 3 4 5 6 7; do
         card_ids="$card_ids $((2000 + row * 10 + offset))"
     done
 done
@@ -85,8 +85,12 @@ check "a partial download offers Resume" "Resume" \
 check "a missing row can be downloaded, not deleted" "1 0" "$(list_field 3 10) $(list_field 3 11)"
 check "a partial row can be resumed and deleted" "1 1" "$(list_field 8 10) $(list_field 8 11)"
 check "an installed row can be deleted, not downloaded" "0 1" "$(list_field 6 10) $(list_field 6 11)"
-check "an installed row hides Download" "true" \
-    "$(card_json 6 | /usr/bin/jq -r '.children[0].children[2].children[3].properties.hidden')"
+check "an installed row offers Show in Download's place" "2067 Show finder speech.models.show null" \
+    "$(card_json 6 | /usr/bin/jq -r '.children[0].children[2].children[3] | [.id, .properties.title, .properties.systemImage, .properties.actionID, .properties.hidden] | map(tostring) | join(" ")')"
+check "and has no Download button" "0" \
+    "$(card_json 6 | /usr/bin/jq '[.. | objects | select(.id? == 2064)] | length')"
+check "a missing row offers Download, not Show" "2034 Download" \
+    "$(card_json 3 | /usr/bin/jq -r '.children[0].children[2].children[3] | [.id, .properties.title] | map(tostring) | join(" ")')"
 check "Apple's row can be neither" "0 0" "$(list_field 1 10) $(list_field 1 11)"
 check "Apple's row hides the trash button" "true" \
     "$(card_json 1 | /usr/bin/jq -r '.children[0].children[2].children[2].properties.hidden')"
@@ -122,6 +126,8 @@ check "the old cards were removed" "8" "$(ui_calls 'omc_remove_element')"
 check "and new ones inserted" "16" "$(ui_calls 'omc_insert_element')"
 check "the row is now downloaded" "$MODELS_INSTALLED_LIST" "$(card_container 3)"
 check "with its size" "Installed - 483 MB" "$(list_field 3 9)"
+check "its Download button became Show" "2037 Show" \
+    "$(card_json 3 | /usr/bin/jq -r '.children[0].children[2].children[3] | [.id, .properties.title] | map(tostring) | join(" ")')"
 
 section "A failed download keeps speech's reason on its card"
 open_models_window
@@ -270,6 +276,31 @@ case "$info" in *Location*|*"Downloads to"*) location=yes ;; *) location=no ;; e
 check "Apple's row has no location" "no" "$location"
 omc_run speech.models.info.close
 check "Close dismisses the sheet" "1" "$(ui_calls 'omc_dismiss_modal')"
+
+# ------------------------------------------------------------------------------------------------
+section "Show selects an installed model's folder in the Finder, and says when it is gone"
+open_models_window
+tick
+models_root="$OMCTEST_WORK/Models"
+/bin/mkdir -p "$models_root/ggml.whisper-large-v3-turbo@q8_0"
+FAKE_SPEECH_MODELS_DIR="$models_root"
+export FAKE_SPEECH_MODELS_DIR
+/bin/rm -f "$FAKE_OPEN_LOG"
+omc_trigger 2067
+omc_run speech.models.show
+check_status "show exits cleanly" 0
+check "the Finder selects the model's folder" "-R $models_root/ggml.whisper-large-v3-turbo@q8_0" "$(/bin/cat "$FAKE_OPEN_LOG" 2>/dev/null)"
+/bin/rm -rf "$models_root/ggml.whisper-large-v3-turbo@q8_0" "$FAKE_OPEN_LOG"
+omc_trigger 2067
+omc_run speech.models.show
+check "a folder that is gone opens nothing" "" "$(/bin/cat "$FAKE_OPEN_LOG" 2>/dev/null)"
+check "and the status says so" "The files of Whisper large-v3-turbo (Q8_0) are not on this Mac." "$(ui_value "$MODELS_STATUS")"
+/bin/mkdir -p "$models_root/fluid.parakeet-v3@int8"
+/bin/rm -f "$FAKE_OPEN_LOG"
+omc_trigger 2037
+omc_run speech.models.show
+check "a row that is not installed opens nothing" "" "$(/bin/cat "$FAKE_OPEN_LOG" 2>/dev/null)"
+unset FAKE_SPEECH_MODELS_DIR
 
 # ------------------------------------------------------------------------------------------------
 section "Done closes the window, and closing it removes the spool"
