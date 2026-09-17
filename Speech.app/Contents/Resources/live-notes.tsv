@@ -1,0 +1,14 @@
+# live-notes.tsv - what each live model is like, shown as the Live transcript's placeholder after
+# "Press Live and speak." (refresh_live_placeholder in lib.speech.sh).
+#   1 catalog id, or the id without its "@variant" for a note every variant shares <TAB> 2 the note
+# An exact id wins over its family. The facts come from speech's docs/live.md, measured on an M5
+# with FLEURS read speech; a real room and microphone will be slower and less accurate.
+apple.dictation	Built into macOS. Words appear as you speak, about 2 seconds behind you.
+apple.transcriber	Built into macOS and made for long recordings. The first words take about 4 seconds, then follow about a second behind you.
+fluid.nemotron-multilingual@2240	Text appears in steps about every 2 seconds. Strong in English, weaker in Polish; the three step sizes scored about the same.
+fluid.nemotron-multilingual@1120	Text appears in steps about every second. Strong in English, weaker in Polish; the three step sizes scored about the same.
+fluid.nemotron-multilingual@560	Text appears in steps about every half second, the quickest of the three. Strong in English, weaker in Polish; the three step sizes scored about the same.
+ggml.nemotron-3.5-asr-streaming-0.6b	Words appear about a second and a half after you start and keep up with you closely. Strong in English, weaker in Polish.
+fluid.parakeet-v3	Parakeet v3 writes in blocks, not word by word: the first text appears about 13 seconds after you start, then every 11 seconds, and the rest when you stop. It covers 25 languages, including Polish.
+fluid.parakeet-unified	English only. The seconds in the name are how often text appears: shorter is quicker but less accurate, and on long continuous speech the shortest steps can drop a sentence.
+ggml.parakeet-unified-en-0.6b	English only. Text appears in short pieces about once a second, starting about 3 seconds after you start.

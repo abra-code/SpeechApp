@@ -62,6 +62,25 @@ end_quiet_window
 omc_control "$LIVE_MODEL_PICKER" 2
 omc_run speech.model.changed
 check "back to apple.transcriber" "apple.transcriber" "$(/bin/cat "$(live_pane)/model.id")"
+
+section "the transcript's placeholder says what the selected live model is like"
+notes="$OMC_APP_BUNDLE_PATH/Contents/Resources/live-notes.tsv"
+note_for() { /usr/bin/awk -F'\t' -v key="$1" '$1 == key { print $2; exit }' "$notes"; }
+check "apple.transcriber's own note" "Press Live and speak. $(note_for apple.transcriber)" "$(ui_prop "$LIVE_TRANSCRIPT" placeholder)"
+check "the note is not empty" "yes" "$([ -n "$(note_for apple.transcriber)" ] && echo yes || echo no)"
+end_quiet_window
+omc_control "$LIVE_MODEL_PICKER" 3
+omc_run speech.model.changed
+check "a variant without a note of its own takes its family's" \
+    "Press Live and speak. $(note_for ggml.nemotron-3.5-asr-streaming-0.6b)" "$(ui_prop "$LIVE_TRANSCRIPT" placeholder)"
+check "an exact id wins over its family" "$(note_for fluid.nemotron-multilingual@560)" \
+    "$(lib_call live_model_note fluid.nemotron-multilingual@560)"
+check "a model with no note gets none" "" "$(lib_call live_model_note ggml.whisper-large-v3-turbo@q8_0)"
+check "every live row has a note" "" "$(for id in apple.dictation apple.transcriber fluid.nemotron-multilingual@2240 fluid.nemotron-multilingual@1120 fluid.nemotron-multilingual@560 ggml.nemotron-3.5-asr-streaming-0.6b@q8_0 ggml.nemotron-3.5-asr-streaming-0.6b@q4_k_m fluid.parakeet-v3@int8 fluid.parakeet-v3@int4 fluid.parakeet-unified@stream-2080 fluid.parakeet-unified@stream-1120 fluid.parakeet-unified@stream-640 fluid.parakeet-unified@stream-320 ggml.parakeet-unified-en-0.6b@q8_0; do [ -n "$(lib_call live_model_note "$id")" ] || printf '%s ' "$id"; done)"
+end_quiet_window
+omc_control "$LIVE_MODEL_PICKER" 2
+omc_run speech.model.changed
+check "back to apple.transcriber for the sections below" "apple.transcriber" "$(/bin/cat "$(live_pane)/model.id")"
 end_quiet_window
 
 # ------------------------------------------------------------------------------------------------

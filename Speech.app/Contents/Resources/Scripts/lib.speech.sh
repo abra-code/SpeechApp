@@ -2297,11 +2297,39 @@ refresh_live_clock() {   # $1 = pane dir
     [ -n "$_shown" ] || "$dialog" "$window_uuid" "$LIVE_CLOCK" omc_show
 }
 
+# What a live model is like, said before anyone presses Live: how soon text appears, whether it
+# comes word by word or in blocks, what it is good or poor at. Resources/live-notes.tsv holds one
+# note per catalog id, or per id without its "@variant" for notes every variant shares; the exact id
+# wins. The note is the Live transcript's placeholder, in front of the user rather than in a page
+# about the model, and it is there until the first words arrive.
+LIVE_NOTES="$OMC_APP_BUNDLE_PATH/Contents/Resources/live-notes.tsv"
+LIVE_PLACEHOLDER="Press Live and speak. The transcript appears here as you talk."
+
+live_model_note() {   # $1 = model id
+    [ -n "$1" ] || return 0
+    local _note="$(tsv_field "$LIVE_NOTES" "$1" 2)"
+    [ -n "$_note" ] || _note="$(tsv_field "$LIVE_NOTES" "${1%%@*}" 2)"
+    printf '%s' "$_note"
+}
+
+# Put the selected model's note in the placeholder, once per model rather than every tick.
+#   pane's placeholder.model   the model the placeholder was last written for
+refresh_live_placeholder() {   # $1 = live pane dir
+    local _model="$(read_state "$1/model.id")"
+    [ -f "$1/placeholder.model" ] && [ "$_model" = "$(read_state "$1/placeholder.model")" ] && return 0
+    local _note="$(live_model_note "$_model")"
+    local _text="$LIVE_PLACEHOLDER"
+    [ -n "$_note" ] && _text="Press Live and speak. $_note"
+    "$dialog" "$window_uuid" "$LIVE_TRANSCRIPT" omc_set_property placeholder "$_text"
+    write_state "$1/placeholder.model" "$_model"
+}
+
 refresh_live_actions() {   # $1 = pane dir
     use_pane live
     local _pane="$1"
     # The clock moves every tick, so it is refreshed ahead of the signature that holds the rest.
     refresh_live_clock "$_pane"
+    refresh_live_placeholder "$_pane"
     local _model="$(read_state "$_pane/model.id")"
     local _models_ready=0
     [ -f "$_pane/models.tsv" ] && _models_ready=1
