@@ -147,6 +147,16 @@
     },
     {
       "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.move.up",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
+      "COMMAND_ID": "speech.recordings.move.down",
+      "EXECUTION_MODE": "exe_script_file"
+    },
+    {
+      "NAME": "Speech",
       "COMMAND_ID": "speech.recordings.play",
       "EXECUTION_MODE": "exe_script_file"
     },

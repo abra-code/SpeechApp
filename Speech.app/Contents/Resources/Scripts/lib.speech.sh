@@ -123,6 +123,8 @@ REC_REMOVE_BTN=162
 REC_TRASH_BTN=163
 REC_PLAY_BTN=164
 REC_REVEAL_BTN=165
+REC_UP_BTN=166
+REC_DOWN_BTN=167
 REC_CLOCK=170
 REC_TRANSCRIPT=210
 REC_STATUS=310
@@ -1377,6 +1379,74 @@ remove_recording() {   # $1 = pane dir, $2 = path
     /bin/rm -f "$1/status.note"
 }
 
+# The selected recording's place in the list, counting from 1; 0 when nothing listed is selected.
+selected_recording_position() {   # $1 = pane dir
+    local _selected="$(read_state "$1/selected.key")"
+    if [ -z "$_selected" ]; then
+        printf '0'
+        return 0
+    fi
+    local _position=0
+    local _path
+    while IFS= read -r _path; do
+        [ -n "$_path" ] || continue
+        _position=$((_position + 1))
+        if [ "$(item_key "$_path")" = "$_selected" ]; then
+            printf '%s' "$_position"
+            return 0
+        fi
+    done < "$1/list.tsv"
+    printf '0'
+}
+
+# Swap the selected recording with the one above or below it. The list's order is the order
+# Transcribe works in and Join puts the transcripts in. Returns 1 when there is nothing to swap with.
+move_selected_recording() {   # $1 = pane dir, $2 = up | down
+    local _position="$(selected_recording_position "$1")"
+    [ "$_position" -gt 0 ] || return 1
+    local _other
+    case "$2" in
+        up)   _other=$((_position - 1)) ;;
+        down) _other=$((_position + 1)) ;;
+        *)    return 1 ;;
+    esac
+    [ "$_other" -ge 1 ] && [ "$_other" -le "$(recording_count "$1")" ] || return 1
+    # Only line numbers go through -v, so a backslash in a path is never read as an escape. The
+    # numbers are checked against the list again: a line taken out in between would otherwise be
+    # swapped with nothing, and a path lost.
+    /usr/bin/awk -v a="$_position" -v b="$_other" '
+        NF { line[++n] = $0 }
+        END {
+            if (a >= 1 && a <= n && b >= 1 && b <= n) { t = line[a]; line[a] = line[b]; line[b] = t }
+            for (i = 1; i <= n; i++) print line[i]
+        }
+    ' "$1/list.tsv" > "$1/list.tsv.tmp.$$"
+    local _awk_status=$?
+    if [ "$_awk_status" -ne 0 ]; then
+        /bin/rm -f "$1/list.tsv.tmp.$$"
+        return 1
+    fi
+    /bin/mv -f "$1/list.tsv.tmp.$$" "$1/list.tsv"
+}
+
+# The up and down buttons under the list. Not while a batch runs or a recording is being made, as
+# for Remove: the table's rows are what those report on.
+handle_move_recording() {   # $1 = up | down
+    local _pane="$(pane_dir_for "$window_uuid" recordings)"
+    [ -n "$window_uuid" ] && [ -d "$_pane" ] || return 0
+    use_pane recordings
+    pane_is_busy "$_pane"
+    local _busy=$?
+    if [ "$_busy" -eq 0 ]; then
+        set_status "Stop the transcription before changing the order of the list."
+        return 0
+    fi
+    move_selected_recording "$_pane" "$1" || return 0
+    render_recordings_table "$_pane"
+    /bin/rm -f "$_pane/actions.sig"
+    refresh_recordings_actions "$_pane"
+}
+
 # A dropped item is either a path or a file URL. Prints the path.
 path_from_drop_item() {   # $1 = item
     case "$1" in
@@ -2411,6 +2481,13 @@ refresh_recordings_actions() {   # $1 = pane dir
     # nothing and stay open through a batch; only an open microphone closes Play, which would
     # otherwise play into the recording being made, or into the Live tab's session.
     local _can_trash=$_can_remove
+    # Moving up and down waits with Remove as well, and stops at either end of the list.
+    local _position=0
+    [ "$_can_remove" = 1 ] && _position="$(selected_recording_position "$_pane")"
+    local _can_up=0
+    [ "$_position" -gt 1 ] && _can_up=1
+    local _can_down=0
+    [ "$_position" -ge 1 ] && [ "$_position" -lt "$_count" ] && _can_down=1
     local _can_play=0
     [ "$_recording" = 0 ] && [ "$_other_busy" = 0 ] && [ -n "$_selected" ] && _can_play=1
     local _can_reveal=0
@@ -2425,7 +2502,7 @@ refresh_recordings_actions() {   # $1 = pane dir
     local _can_pick_model=0
     [ "$_active" = 0 ] && [ "$_recording" = 0 ] && [ "$_models_ready" = 1 ] && _can_pick_model=1
 
-    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_can_trash$_can_play$_can_reveal$_playing_selected|$_models_ready|$_batch|$_capture_state$_capture_stoppable|$_other_busy|$_count|$_selected|$_item_state|$_model|$_join$_joinable"
+    local _signature="$_can_transcribe$_can_record$_can_stop$_can_export$_can_copy$_can_remove$_can_pick|$_can_trash$_can_play$_can_reveal$_playing_selected|$_can_up$_can_down|$_models_ready|$_batch|$_capture_state$_capture_stoppable|$_other_busy|$_count|$_selected|$_item_state|$_model|$_join$_joinable"
     [ "$_signature" = "$(read_state "$_pane/actions.sig")" ] && return 0
     write_state "$_pane/actions.sig" "$_signature"
 
@@ -2435,6 +2512,8 @@ refresh_recordings_actions() {   # $1 = pane dir
     set_enabled "$REC_EXPORT_MENU" "$_can_export"
     set_enabled "$REC_COPY_BTN" "$_can_copy"
     set_enabled "$REC_REMOVE_BTN" "$_can_remove"
+    set_enabled "$REC_UP_BTN" "$_can_up"
+    set_enabled "$REC_DOWN_BTN" "$_can_down"
     set_enabled "$REC_TRASH_BTN" "$_can_trash"
     set_enabled "$REC_PLAY_BTN" "$_can_play"
     set_enabled "$REC_REVEAL_BTN" "$_can_reveal"

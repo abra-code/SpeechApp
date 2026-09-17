@@ -354,7 +354,30 @@
                               "actionID": "speech.recordings.remove"
                             }
                           },
-                          { "type": "Divider", "properties": { "frame": { "height": 16 } } },
+                          { "type": "Divider", "properties": { "frame": { "height": 16 }, "padding": { "leading": 6, "trailing": 6 } } },
+                          {
+                            "type": "Button",
+                            "id": 166,
+                            "properties": {
+                              "systemImage": "arrow.up",
+                              "buttonStyle": "borderless",
+                              "disabled": true,
+                              "help": "Move the selected recording up. Transcripts are joined in list order.",
+                              "actionID": "speech.recordings.move.up"
+                            }
+                          },
+                          {
+                            "type": "Button",
+                            "id": 167,
+                            "properties": {
+                              "systemImage": "arrow.down",
+                              "buttonStyle": "borderless",
+                              "disabled": true,
+                              "help": "Move the selected recording down. Transcripts are joined in list order.",
+                              "actionID": "speech.recordings.move.down"
+                            }
+                          },
+                          { "type": "Divider", "properties": { "frame": { "height": 16 }, "padding": { "leading": 6, "trailing": 6 } } },
                           {
                             "type": "Button",
                             "id": 164,
@@ -385,6 +408,7 @@
                               "systemImage": "trash",
                               "buttonStyle": "borderless",
                               "disabled": true,
+                              "padding": { "trailing": 4 },
                               "help": "Move the selected recording to the Trash",
                               "actionID": "speech.recordings.trash"
                             }

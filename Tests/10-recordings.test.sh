@@ -555,6 +555,54 @@ check "the recording stays" "yes" "$(/usr/bin/grep -Fxq "$rec1" "$(rec_pane)/lis
 check "the status says why" "Stop the transcription before removing a recording from the list." "$(ui_value "$REC_STATUS")"
 /bin/rm -f "$(rec_pane)/batch"
 
+section "Up and Down move the selected recording one place, and stop at either end"
+saved_list="$(/bin/cat "$(rec_pane)/list.tsv")"
+order_a="$OMCTEST_WORK/order a.wav"
+order_b="$OMCTEST_WORK/order\\b.wav"
+order_c="$OMCTEST_WORK/order c.wav"
+printf 'RIFF' > "$order_a"
+printf 'RIFF' > "$order_b"
+printf 'RIFF' > "$order_c"
+printf '%s\n%s\n%s\n' "$order_a" "$order_b" "$order_c" > "$(rec_pane)/list.tsv"
+list_order() { /usr/bin/awk 'NF' "$(rec_pane)/list.tsv" | /usr/bin/paste -sd '|' -; }
+table_order() { /usr/bin/cut -f 4 "$(rec_pane)/rows.tsv" | /usr/bin/paste -sd '|' -; }
+omc_table_cell "$REC_TABLE" 4 ""
+omc_run speech.recordings.selected
+/bin/rm -f "$(rec_pane)/selected.key" "$(rec_pane)/actions.sig"
+pane_call recordings refresh_recordings_actions "$(rec_pane)"
+check "both wait for a selection" "0 0" "$(ui_enabled "$REC_UP_BTN") $(ui_enabled "$REC_DOWN_BTN")"
+end_quiet_window
+omc_table_cell "$REC_TABLE" 4 "$order_b"
+omc_run speech.recordings.selected
+check "a recording in the middle can go either way" "1 1" "$(ui_enabled "$REC_UP_BTN") $(ui_enabled "$REC_DOWN_BTN")"
+omc_run speech.recordings.move.up
+check_status "move up exits cleanly" 0
+check "it moved up, backslash and all" "$order_b|$order_a|$order_c" "$(list_order)"
+check "the table follows" "$order_b|$order_a|$order_c" "$(table_order)"
+check "it stays selected" "$(/sbin/md5 -q -s "$order_b")" "$(/bin/cat "$(rec_pane)/selected.key")"
+check "at the top, only Down is offered" "0 1" "$(ui_enabled "$REC_UP_BTN") $(ui_enabled "$REC_DOWN_BTN")"
+omc_run speech.recordings.move.up
+check "moving the first one up changes nothing" "$order_b|$order_a|$order_c" "$(list_order)"
+omc_run speech.recordings.move.down
+omc_run speech.recordings.move.down
+check "it moved down twice" "$order_a|$order_c|$order_b" "$(list_order)"
+check "at the bottom, only Up is offered" "1 0" "$(ui_enabled "$REC_UP_BTN") $(ui_enabled "$REC_DOWN_BTN")"
+omc_run speech.recordings.move.down
+check "moving the last one down changes nothing" "$order_a|$order_c|$order_b" "$(list_order)"
+
+section "Up and Down wait while a batch runs"
+printf 'running' > "$(rec_pane)/batch"
+pane_call recordings refresh_recordings_actions "$(rec_pane)"
+check "both are disabled" "0 0" "$(ui_enabled "$REC_UP_BTN") $(ui_enabled "$REC_DOWN_BTN")"
+omc_run speech.recordings.move.up
+check "the order stays" "$order_a|$order_c|$order_b" "$(list_order)"
+check "the status says why" "Stop the transcription before changing the order of the list." "$(ui_value "$REC_STATUS")"
+/bin/rm -f "$(rec_pane)/batch"
+pane_call recordings refresh_recordings_actions "$(rec_pane)"
+check "and come back when it ends" "1 0" "$(ui_enabled "$REC_UP_BTN") $(ui_enabled "$REC_DOWN_BTN")"
+printf '%s\n' "$saved_list" > "$(rec_pane)/list.tsv"
+/bin/rm -f "$(rec_pane)/selected.key" "$(rec_pane)/actions.sig"
+
 # ------------------------------------------------------------------------------------------------
 section "a transcript name drops the recording's extension and keeps the model's characters safe"
 check "extension dropped, model appended" "take.two - apple.transcriber.txt" "$(lib_call transcript_name_for "/x/take.two.wav" apple.transcriber)"
