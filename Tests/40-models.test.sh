@@ -187,6 +187,26 @@ check "and so is delete" "1" "$(ui_enabled 2085)"
 unset FAKE_SPEECH_DOWNLOAD
 reap_fake
 
+section "A FluidAudio download counts files, not bytes: the card shows its percent and file count"
+open_models_window
+tick
+FAKE_SPEECH_DOWNLOAD=hang-files
+export FAKE_SPEECH_DOWNLOAD
+dl="$(download_dir fluid.parakeet-v3@int8)"
+omc_trigger 2034
+omc_run speech.models.download
+check "the fake reported progress" "yes" \
+    "$(omc_wait_for "[ -s \"$dl/events.jsonl\" ]" && echo yes || echo no)"
+tick
+check "the card shows the percent and the files, not 0 bytes" "Downloading... 39% (5 of 16 files)" "$(ui_value 2033)"
+worker_pid="$(/bin/cat "$dl/worker.pid" 2>/dev/null)"
+/bin/kill -TERM "$worker_pid" 2>/dev/null
+check "the worker stops" "yes" \
+    "$(omc_wait_for "[ ! -d \"$dl\" ]" && echo yes || echo no)"
+check "no fake speech is left running" "0" "$(/usr/bin/pgrep -f "$SPEECH_BIN" 2>/dev/null | /usr/bin/awk 'END { print NR }')"
+unset FAKE_SPEECH_DOWNLOAD
+reap_fake
+
 # ------------------------------------------------------------------------------------------------
 section "Delete asks first, then deletes, and the card moves"
 open_models_window

@@ -16,7 +16,9 @@
 #   FAKE_SPEECH_MODELS_DIR the folder `models status` puts a model's path under
 #                          (default /nonexistent/Models)
 #   FAKE_SPEECH_DOWNLOAD   `models download` behavior: ok (default), fail (an error event, exit 1),
-#                          or hang (one progress event, then wait to be signaled)
+#                          hang (one progress event, then wait to be signaled), or hang-files
+#                          (the same, in the shape FluidAudio models report: a fraction and a
+#                          file count, no bytes)
 #   FAKE_SPEECH_DELETE     `models delete` behavior: ok (default) or fail (a message, exit 1)
 #   FAKE_SPEECH_ADD        `models add` behavior: ok (default; appends the added row to the
 #                          catalog copy), fail (speech's usage error, exit 2), hang (one progress
@@ -106,6 +108,10 @@ case "$verb" in
                         ;;
                     hang)
                         printf '{"bytes_done":120000000,"bytes_total":480000000,"file":"model.bin","fraction":0.25,"model":"%s","phase":"downloading","t":0.1,"type":"model.progress"}\n' "$id"
+                        exec -a "$0" /bin/sleep 600
+                        ;;
+                    hang-files)
+                        printf '{"file":"5 of 16 files","fraction":0.39,"model":"%s","phase":"downloading","t":0.1,"type":"model.progress"}\n' "$id"
                         exec -a "$0" /bin/sleep 600
                         ;;
                 esac

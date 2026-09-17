@@ -23,11 +23,16 @@ def clean: tostring | gsub("[\t\r\n\u001f]"; " ");
 def progress_text:
     if . == null then "Starting the download..."
     elif .phase == "listing" then "Looking up the files..."
-    elif .phase == "downloading" then
-        "Downloading \(.bytes_done // 0 | bytes)"
+    elif .phase == "downloading" and .bytes_done != null then
+        "Downloading \(.bytes_done | bytes)"
         + (if (.bytes_total // 0) > 0
-           then " of \(.bytes_total | bytes) (\((.bytes_done // 0) * 100 / .bytes_total | floor)%)"
+           then " of \(.bytes_total | bytes) (\(.bytes_done * 100 / .bytes_total | floor)%)"
            else "" end)
+    # A FluidAudio model counts files, not bytes: speech gives the fraction and "3 of 16 files".
+    elif .phase == "downloading" then
+        "Downloading..."
+        + (if .fraction != null then " \(.fraction * 100 | floor)%" else "" end)
+        + (if .file != null then " (\(.file | clean))" else "" end)
     elif .phase == "compiling" then "Preparing the model for this Mac..."
     elif .phase == "installing" then "Installing..."
     else "Downloading..." end;
