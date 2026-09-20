@@ -85,11 +85,12 @@ check "a partial download offers Resume" "Resume" \
 check "a missing row can be downloaded, not deleted" "1 0" "$(list_field 3 10) $(list_field 3 11)"
 check "a partial row can be resumed and deleted" "1 1" "$(list_field 8 10) $(list_field 8 11)"
 check "an installed row can be deleted, not downloaded" "0 1" "$(list_field 6 10) $(list_field 6 11)"
-check "an installed row offers Show in Download's place" "2067 Show finder speech.models.show null" \
-    "$(card_json 6 | /usr/bin/jq -r '.children[0].children[2].children[3] | [.id, .properties.title, .properties.systemImage, .properties.actionID, .properties.hidden] | map(tostring) | join(" ")')"
+check "an installed row offers Show as a folder icon, then the trash" \
+    "2067 folder null speech.models.show null 2065 trash null speech.models.delete false" \
+    "$(card_json 6 | /usr/bin/jq -r '[.children[0].children[2].children[2:][] | .id, .properties.systemImage, .properties.title, .properties.actionID, .properties.hidden] | map(tostring) | join(" ")')"
 check "and has no Download button" "0" \
     "$(card_json 6 | /usr/bin/jq '[.. | objects | select(.id? == 2064)] | length')"
-check "a missing row offers Download, not Show" "2034 Download" \
+check "a missing row offers Download last, not Show" "2034 Download" \
     "$(card_json 3 | /usr/bin/jq -r '.children[0].children[2].children[3] | [.id, .properties.title] | map(tostring) | join(" ")')"
 check "Apple's row can be neither" "0 0" "$(list_field 1 10) $(list_field 1 11)"
 check "Apple's row hides the trash button" "true" \
@@ -126,8 +127,8 @@ check "the old cards were removed" "8" "$(ui_calls 'omc_remove_element')"
 check "and new ones inserted" "16" "$(ui_calls 'omc_insert_element')"
 check "the row is now downloaded" "$MODELS_INSTALLED_LIST" "$(card_container 3)"
 check "with its size" "Installed - 483 MB" "$(list_field 3 9)"
-check "its Download button became Show" "2037 Show" \
-    "$(card_json 3 | /usr/bin/jq -r '.children[0].children[2].children[3] | [.id, .properties.title] | map(tostring) | join(" ")')"
+check "its Download button became the Show icon" "2037 folder" \
+    "$(card_json 3 | /usr/bin/jq -r '.children[0].children[2].children[2] | [.id, .properties.systemImage] | map(tostring) | join(" ")')"
 
 section "A failed download keeps speech's reason on its card"
 open_models_window

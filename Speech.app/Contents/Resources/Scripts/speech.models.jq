@@ -12,7 +12,8 @@
 #
 # Arguments: $base, the card id base; $builtin, $installed, $available, the three section
 # containers. A card's id is $base + row * 10, rows counted from 1; its parts sit at the offsets
-# lib.speech.sh names CARD_*. An installed card has Show (CARD_SHOW) and no Download button.
+# lib.speech.sh names CARD_*. An installed card has Show (CARD_SHOW), a folder icon, instead of
+# the Download button.
 
 def clean: if . == null then "" else tostring | gsub("[\t\r\n\u001f]"; " ") end;
 
@@ -66,9 +67,9 @@ def state_text:
 def shows_download: .state == "missing" or .state == "partial";
 # A missing row with files on disk has to be deleted first, as its state text says.
 def can_download: .available == true and shows_download and (.state == "partial" or on_disk == 0);
-# An installed card takes Show in the Download button's place: a hidden button still takes its
-# space, which would leave the trash button stranded left of an empty slot. Cards are rebuilt when
-# the catalog changes, so a finished download swaps the button.
+# An installed card takes Show instead of the Download button: a hidden button still takes its
+# space, which would leave an empty slot beside the trash button. Cards are rebuilt when the
+# catalog changes, so a finished download swaps the button.
 def shows_show: .state == "installed";
 def can_delete: .state == "installed" or .state == "partial" or (.state != "system_managed" and on_disk > 0);
 
@@ -76,6 +77,19 @@ def section:
     if .state == "system_managed" then $builtin
     elif .state == "installed" then $installed
     else $available end;
+
+# The trailing controls of a card, in the Interpreter Models window's presentation: an installed
+# card is a pair of borderless icons, Show (folder) then Delete (trash), 14 apart; every other card
+# keeps Delete first and the Download button last, so the prominent button stays flush with the
+# card's trailing edge even where a hidden trash still takes its space.
+def delete_button($card):
+    { type: "Button", id: ($card + 5), properties: { systemImage: "trash", buttonStyle: "borderless", role: "destructive", help: "Delete this model from this Mac", actionID: "speech.models.delete", hidden: (can_delete | not) } };
+
+def show_button($card):
+    { type: "Button", id: ($card + 7), properties: { systemImage: "folder", buttonStyle: "borderless", help: "Show this model's files in the Finder", actionID: "speech.models.show" } };
+
+def download_button($card):
+    { type: "Button", id: ($card + 4), properties: { title: (if .state == "partial" then "Resume" else "Download" end), buttonStyle: "borderedProminent", actionID: "speech.models.download", hidden: (shows_download | not), disabled: (can_download | not) } };
 
 def card($card):
     {
@@ -94,17 +108,12 @@ def card($card):
             },
             { type: "Text", id: ($card + 2), properties: { text: ([languages_text, use_text] | join(" - ")), font: "caption", foregroundStyle: "secondary" } },
             {
-              type: "HStack", properties: { spacing: 8 },
-              children: [
+              type: "HStack", properties: { spacing: (if shows_show then 14 else 8 end) },
+              children: ([
                 { type: "Text", id: ($card + 3), properties: { text: (state_text | clean), font: "caption", foregroundStyle: "secondary" } },
-                { type: "Spacer" },
-                { type: "Button", id: ($card + 5), properties: { systemImage: "trash", buttonStyle: "borderless", role: "destructive", help: "Delete this model from this Mac", actionID: "speech.models.delete", hidden: (can_delete | not) } },
-                (if shows_show then
-                    { type: "Button", id: ($card + 7), properties: { title: "Show", systemImage: "finder", buttonStyle: "bordered", help: "Show this model's files in the Finder", actionID: "speech.models.show" } }
-                else
-                    { type: "Button", id: ($card + 4), properties: { title: (if .state == "partial" then "Resume" else "Download" end), buttonStyle: "borderedProminent", actionID: "speech.models.download", hidden: (shows_download | not), disabled: (can_download | not) } }
-                end)
-              ]
+                { type: "Spacer" }
+              ] + (if shows_show then [show_button($card), delete_button($card)]
+                   else [delete_button($card), download_button($card)] end))
             }
           ]
         }
