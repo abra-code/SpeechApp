@@ -127,7 +127,7 @@ MEASUREMENTS_SRC="$SPEECH_REPO/docs/benchmarks/measurements.tsv"
 # Live figures are published separately because they are a separate measurement; the Models
 # window suggests a live model from them.
 LIVE_MEASUREMENTS_SRC="$SPEECH_REPO/docs/benchmarks/live-measurements.tsv"
-FAMILY_PAGES_SRC="$SPEECH_REPO/docs/models"
+FAMILY_PAGES_SRC="$SPEECH_REPO/docs/models-user"
 
 # -- 2. Deploy ---------------------------------------------------------------------------------
 # Every copy lands beside its destination under a temporary name and is renamed into place, so

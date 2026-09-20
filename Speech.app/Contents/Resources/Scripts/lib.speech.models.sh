@@ -503,10 +503,22 @@ model_info_markdown() {   # $1 = spool, $2 = row
         fi
     fi
 
-    case "$_family" in
-        ''|*[!a-z0-9.-]*) return 0 ;;
+    # A page for this exact row when there is one, otherwise the family's. The
+    # two Apple engines share a family but differ enough in languages and
+    # accuracy to be described separately. A variant id carries '@' and fails
+    # the name test, so those fall through to the family page as before.
+    local _page=""
+    case "$_id" in
+        ''|*[!a-z0-9.-]*) ;;
+        *) [ -f "$RESOURCES_DIR/Reference/models/$_id.md" ] \
+               && _page="$RESOURCES_DIR/Reference/models/$_id.md" ;;
     esac
-    local _page="$RESOURCES_DIR/Reference/models/$_family.md"
+    if [ -z "$_page" ]; then
+        case "$_family" in
+            ''|*[!a-z0-9.-]*) return 0 ;;
+        esac
+        _page="$RESOURCES_DIR/Reference/models/$_family.md"
+    fi
     [ -f "$_page" ] || return 0
     printf '\n---\n\n'
     /bin/cat "$_page"
@@ -736,7 +748,7 @@ suggest_line() {   # $1 = picks file, $2 = mode, $3 = language name
                     # A second corpus of the same language picked a different model: both are
                     # true, and which one matters depends on the kind of recording.
                     _text="$_text  
-**On other recordings:** $(suggest_phrase "$2" "$_name" "$_metric" "$_figure" "$_second" "$_state" "$_wait")"
+**Clear Recordings:** $(suggest_phrase "$2" "$_name" "$_metric" "$_figure" "$_second" "$_state" "$_wait")"
                 fi
                 ;;
             fast)

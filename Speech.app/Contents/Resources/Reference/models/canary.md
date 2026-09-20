@@ -1,32 +1,33 @@
 # Canary 1B v2
 
-> Measured on an Apple M5 with macOS 26.6.2 in September 2026, over the full
-> FLEURS test sets. Use these numbers as a guide: results on your Mac and with
-> your own recordings can differ.
+NVIDIA's Canary, covering 25 European languages. The best all-round accuracy measured here, at a speed and memory cost most Macs will not notice.
 
-NVIDIA's Canary-1B-v2, covering 25 European languages. The best all-round model in these measurements: at least 15 percent fewer errors than Apple's engine in all three languages tested, about 50 times faster than real time, in about 1.3 GB of memory.
+| | |
+| --- | --- |
+| **Best for** | Accurate transcription in European languages |
+| **Speed** | 47 to 56 times real time, so an hour takes about a minute |
+| **Memory** | 1.3 GB |
+| **Live typing** | No |
+| **Subtitles** | No - it produces no timestamps |
 
-## Measurements
+## Word Error Rate (WER)
 
-Full FLEURS test sets, 2026-09-04 and 2026-09-05. Word error rate (WER) in percent, lower is better; speed in multiples of real time.
+Word error rate (WER) is the share of words you would have to fix, so lower is better.
 
-| row | en | pl | de | speed | memory |
-| --- | --- | --- | --- | --- | --- |
-| `ggml.canary-1b-v2@q8_0` | 4.92 | 6.82 | 4.41 | 47-56x | 1.32-1.38 GB |
-| `ggml.canary-1b-v2@q4_k_m` | not measured | | | | |
-| `fluid.canary-1b-v2@int4` | 6.36 | 11.77 | 6.96 | 6-8x | 0.31-0.34 GB |
+| | Canary | Built into macOS |
+| --- | --- | --- |
+| English | 4.9% | 8.0% |
+| Polish | 6.8% | 13.2% |
+| German | 4.4% | 6.5% |
 
-## The 4-bit Core ML build
+## Choosing
 
-FluidInference publishes this model for Core ML only in 4-bit form. That build is 1.4 to 5 WER points worse than the 8-bit GGUF build in every language, and about seven times slower. Its only advantage is memory: 0.31-0.34 GB against 1.32-1.38 GB. It is hidden from the model list, but still runs when its full id is given.
+**Pick it if** you want one model that is strong in every European language and you do not need subtitles.
 
-## Limits
+**Skip it if** you need subtitles or live typing, or your language is outside Europe.
 
-- **No timestamps**, word or segment, so no SRT or WebVTT subtitles.
-- **Long recordings are transcribed in 30-second pieces**, cut at quiet points and joined. The model declares 400 seconds per run, but it stops writing after about a minute of speech, and 45-second pieces lost more words: 14.7% WER in English and 13.9% in Polish, against 11.4% and 8.7% at 30 seconds (docs/engines.md).
-- **No language detection, and no error without a language.** Given non-English audio and no `--language`, Canary returns fluent English about the same subject, because without a source language it translates. `speech` refuses to run it without a language.
-- **`fluid.canary-1b-v2@int4` needs macOS 15**, which is why `speech` requires macOS 15 rather than 14.
+**Worth knowing**
 
-## Language tags
-
-Canary uses tags without a region: it accepts `pl` and rejects `pl-PL`. `speech` converts a tag to the model's own form, so either works.
+- **You must tell it the language.** It cannot detect one, and given the wrong language it quietly translates instead of transcribing - fluent text about the right subject, in the wrong language. Speech refuses to run it without a language set rather than let that happen.
+- No timestamps at all, so no subtitle files.
+- Long recordings are split at quiet points automatically.

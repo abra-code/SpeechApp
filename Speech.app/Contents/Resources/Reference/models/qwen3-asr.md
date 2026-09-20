@@ -1,40 +1,35 @@
 # Qwen3-ASR
 
-> Measured on an Apple M5 with macOS 26.6.2 in September 2026, over the full
-> FLEURS test sets. Use these numbers as a guide: results on your Mac and with
-> your own recordings can differ.
+Alibaba's Qwen3-ASR, which pairs a speech model with a language model. The most accurate English and German measured here, and the most uneven across languages - which is why the language you work in decides whether it is the right choice.
 
-Alibaba's Qwen3-ASR, a speech encoder paired with a language-model decoder, in 0.6B and 1.7B sizes. The 1.7B model gives the most accurate English and German measured, but its Polish is weak.
+| | |
+| --- | --- |
+| **Best for** | English and German, where accuracy matters more than speed |
+| **Speed** | 10 to 14 times real time, so an hour takes about five minutes |
+| **Memory** | 3.7 GB, or 1.6 GB for the smaller model |
+| **Live typing** | No |
+| **Subtitles** | No - it produces no timestamps |
 
-## Measurements
+## Word Error Rate (WER)
 
-Full FLEURS test sets, 2026-09-05 (MLX builds 2026-09-07). Word error rate (WER) in percent, lower is better; speed in multiples of real time.
+Word error rate (WER) is the share of words you would have to fix, so lower is better.
 
-| row | en | pl | de | speed | memory |
-| --- | --- | --- | --- | --- | --- |
-| `ggml.qwen3-asr-1.7b@q8_0` | 3.74 | 12.21 | 4.06 | 10-14x | 3.67 GB |
-| `ggml.qwen3-asr-1.7b@q4_k_m` | 4.29 | 16.95 | 5.03 | 12-20x | 2.36 GB |
-| `ggml.qwen3-asr-0.6b@q8_0` | 4.83 | 24.80 | 6.62 | 22-34x | 1.58 GB |
-| `mlx.qwen3-asr-1.7b@8bit` | 4.11 | 17.43 | 5.07 | 9-14x | 3.89-4.08 GB |
-| `mlx.qwen3-asr-1.7b@4bit` | 4.89 | 21.77 | 6.10 | 13-19x | 3.03-3.23 GB |
-| `ggml.qwen3-asr-0.6b@q4_k_m` | not measured | | | | |
+| | Qwen3-ASR | Built into macOS |
+| --- | --- | --- |
+| English | 3.7% | 8.0% |
+| German | 4.1% | 6.5% |
+| Polish | 12.2% | 13.2% |
 
-The MLX builds use the same weights and are worse in every language: by 0.4 points in English and about five in Polish. MLX spends one token budget across a whole request, so a long recording sent in one piece loses its ending without an error; `speech` sends it to the MLX builds in five-minute pieces.
+**Being on the list is not the same as being good at it.** Its languages spread further apart than any other model measured here: best-in-class German at one end, and at the other a score that barely improves on what macOS already does for free. Check the language you care about in the table above rather than trusting the list.
 
-## A language on its list is not a language it is good at
+## Choosing
 
-Its 30 languages are not equally served, and the six measured here spread further apart than for any other model. German is its best: 4.06, the lowest German measured and 37.6 percent fewer errors than Apple. Polish is its worst: 12 to 25 percent, where even the best build's 12.21 fails to beat Apple's 13.16 by the 15 percent this project asks for. Check the language you care about in the table above rather than trusting the list.
+**Pick it if** you transcribe English or German and want the lowest error count available, and a few minutes per hour of audio is acceptable.
 
-## Cost
+**Skip it if** your language is one of its weaker ones, you need subtitles, or your Mac has 8 GB of memory - the accurate version alone wants 3.7 GB.
 
-The 8-bit 1.7B build uses 3.67 GB of memory, 23 percent of a 16 GB Mac, and runs at about 12 times real time, so an hour of audio takes about five minutes. The 4-bit build saves 1.3 GB and costs half a point in English and nearly five in Polish: a fair trade where memory is short and the recording is in one of its stronger languages.
+**Worth knowing**
 
-## Limits
-
-- **No timestamps**, so no subtitles.
-- **No custom vocabulary.**
-- **Long recordings are transcribed in 10-second pieces**, cut at quiet points. The model declares 87 minutes per run, but it stops writing after about a minute of speech, and longer pieces lose whole sentences: on 5-minute recordings, 10-second pieces scored 11.3% WER in English against 17.2% for 45-second ones (docs/engines.md).
-
-## What FLEURS does not cover
-
-Qwen3-ASR is published as strong on difficult audio: accents, noise and overlapping speech. FLEURS is clear read speech and cannot test that, so on difficult recordings Qwen3-ASR may compare better than these numbers show.
+- A smaller version is offered at about half the memory. It costs half a point in English and several points in the languages it is already weakest at.
+- No timestamps, so no subtitle files.
+- Its makers publish it as strong on difficult audio - accents, background noise, people talking over each other. These measurements are all clear read speech and cannot show that, so it may do better on hard recordings than the table suggests.

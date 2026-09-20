@@ -1,36 +1,38 @@
 # Parakeet v3
 
-> Measured on an Apple M5 with macOS 26.6.2 in September 2026, over the full
-> FLEURS test sets. Use these numbers as a guide: results on your Mac and with
-> your own recordings can differ.
+NVIDIA's Parakeet v3, for 25 European languages. More accurate than the engine built into macOS in every language measured, and fast enough to get through an hour of audio in well under a minute.
 
-NVIDIA's Parakeet TDT 0.6B v3, covering 25 European languages. At least 15 percent fewer errors than Apple's engine in all three languages tested, at over 100 times real time, which makes it a good choice for long recordings.
+| | |
+| --- | --- |
+| **Best for** | Long recordings in European languages |
+| **Speed** | 100 to 150 times real time |
+| **Memory** | 0.6 GB, or 1.0 GB for the most accurate build |
+| **Live typing** | Yes |
 
-## Measurements
+## Languages
 
-Full FLEURS test sets, 2026-09-04 to 2026-09-07. Word error rate (WER) in percent, lower is better; speed in multiples of real time.
+The three builds differ slightly: the FluidAudio (Core ML) one adds Belarusian, Bosnian and Serbian to the 25 the others cover.
 
-| row | en | pl | de | speed | memory |
-| --- | --- | --- | --- | --- | --- |
-| `ggml.parakeet-tdt-0.6b-v3@q8_0` | 5.42 | 7.36 | 5.21 | 106-118x | 0.98-1.00 GB |
-| `fluid.parakeet-v3@int8` | 5.89 | 7.77 | 5.57 | 121-151x | 0.56-0.58 GB |
-| `mlx.parakeet-tdt-0.6b-v3` | 5.38 | 7.38 | 5.18 | 98-113x | 3.93 GB |
-| `ggml.parakeet-tdt-0.6b-v3@q4_k_m` | not measured | | | | |
-| `fluid.parakeet-v3@int4` | 9.29 | 16.47 | 10.20 | 120-148x | 0.41-0.45 GB |
+## Word Error Rate (WER)
 
-## The same model on three engines
+Word error rate (WER) is the share of words you would have to fix, so lower is better. Measured on read speech; your own recordings can differ.
 
-The three builds share the same weights and were measured on the same recordings with the same scoring.
+| | Parakeet v3 | Built into macOS |
+| --- | --- | --- |
+| English | 5.4% | 8.0% |
+| Polish | 7.4% | 13.2% |
+| German | 5.2% | 6.5% |
 
-- **ggml** is a few tenths of a point more accurate than Core ML in all three languages.
-- **Core ML** (`fluid.parakeet-v3@int8`) is up to 1.5 times faster, uses about 400 MB less memory, and is the only build that accepts a custom vocabulary.
-- **MLX** scores within a few hundredths of the ggml build (5.38 / 7.38 / 5.18 against 5.42 / 7.36 / 5.21), which shows these scores belong to the model, not to one engine. It uses about four times the memory of the ggml build.
+Apple's column is whichever of its two engines does better in that language. Of these 25 languages macOS handles only 6 with its better engine; 13 more it covers with dictation alone, which is weaker, and 6 it does not support at all.
 
-**`fluid.parakeet-v3@int4` is not worth the savings.** It saves about 145 MB and costs 3 to 9 WER points, which puts it behind Apple in all three languages.
+## Choosing
 
-## Limits
+**Pick it if** you work in one of these languages and want the best accuracy for the download size.
 
-- **No language detection on the Core ML build**; the ggml build has it.
-- **Custom vocabulary works on the Core ML build only**, through the small helper model `fluid.parakeet-ctc-110m`.
-- **The builds list different languages.** The GGUF file lists 25, the Core ML package 28. The loaded model has the final say.
-- **The ggml and MLX builds transcribe long recordings in 30-second pieces**, cut at quiet points. Given 20 minutes at once the ggml build needs more memory than a 24 GB Mac has, and even under that limit long pieces drop whole sentences: on 5-minute recordings, 30-second pieces scored 9.0% WER in English and 8.9% in Polish, against 46.6% and 14.4% for the whole 5 minutes. The MLX build ran the same corpora and came out the same way, 8.9% and 9.1% at 30 seconds against 37.6% and 12.9% at the two minutes it used until 2026-09-17; the small `mlx.parakeet-tdt_ctc-110m` loses more in a long piece and gets 15 seconds. 30 seconds was also the fastest length on both builds (docs/engines.md). The Core ML build feeds the model its own way and is not affected.
+**Skip it if** your language is not on the list - Whisper and Qwen3-ASR cover far more.
+
+**Worth knowing**
+
+- Three builds of the same model are offered. The FluidAudio (Core ML) build is the fastest and the smallest; the ggml build is slightly more accurate; the MLX build needs about four times the memory for the same result.
+- The int4 build saves 145 MB and gives up several points of accuracy, which puts it behind Apple. Choose it only if disk space is the deciding factor.
+- Long recordings are split at quiet points automatically, so length is not a limit.

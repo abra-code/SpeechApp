@@ -1,28 +1,38 @@
 # Nemotron 3.5 ASR streaming
 
-> Measured on an Apple M5 with macOS 26.6.2 in September 2026, over the full
-> FLEURS test sets. Use these numbers as a guide: results on your Mac and with
-> your own recordings can differ.
+NVIDIA's streaming model. It writes text while you are still speaking, which is the one thing the more accurate models cannot do.
 
-NVIDIA's Nemotron 3.5 ASR Streaming Multilingual 0.6B, covering 32 locales. It is meant for live transcription, not for files.
+| | |
+| --- | --- |
+| **Best for** | Live typing as you speak |
+| **Speed** | Keeps up with speech comfortably |
+| **Memory** | 0.65 GB to 1.0 GB |
+| **Download** | About 664 MB per version |
+| **Live typing** | Yes - this is its purpose |
 
-## Measurements
+## Languages
 
-Full FLEURS test sets, 2026-09-04 and 2026-09-05, transcribed as files. Word error rate (WER) in percent, lower is better; speed in multiples of real time.
+About 30, and it works out which one is being spoken on its own.
 
-| row | en | pl | de | speed | memory |
-| --- | --- | --- | --- | --- | --- |
-| `ggml.nemotron-3.5-asr-streaming-0.6b@q8_0` | 10.36 | 17.75 | 10.29 | 50-55x | 1.03-1.05 GB |
-| `fluid.nemotron-multilingual@2240` | 10.58 | 17.24 | 10.28 | 67-73x | 0.65 GB |
-| `fluid.nemotron-multilingual@1120` | 10.63 | 17.39 | 10.37 | 58-76x | 0.65 GB |
-| `fluid.nemotron-multilingual@560` | not measured | | | | |
+## Word Error Rate (WER)
 
-On files it lost to Apple in all three languages, on both engines and at every chunk size, so choose another model for recordings.
+Word error rate (WER) is the share of words you would have to fix, so lower is better. These come from transcribing finished recordings.
 
-## Why use it
+| | Nemotron | Built into macOS |
+| --- | --- | --- |
+| English | 10.4% | 8.0% |
+| Polish | 17.2% | 13.2% |
+| German | 10.3% | 6.5% |
 
-It writes text while the audio is still arriving, which the models that beat it on files cannot do. The Core ML builds differ only in chunk size - 0.56, 1.12 and 2.24 seconds. A shorter chunk shows text sooner; a longer one is slightly more accurate. Each chunk size is a separate download of about 664 MB.
+It loses to the built-in engines on every language measured, which is the honest picture for transcribing files.
 
-## Language tags
+## Choosing
 
-Nemotron requires a region: it accepts `pl-PL` and rejects `pl`, the opposite of Canary, Qwen3-ASR and Whisper. `speech` converts a tag to the model's own form, so either works. It detects the spoken language on its own.
+**Pick it if** you want words appearing as you talk and you would rather not use the built-in dictation.
+
+**Skip it for recordings.** For a file you already have, every other model here is more accurate, including the one already in macOS.
+
+**Worth knowing**
+
+- Several versions are offered that differ only in how long they wait before showing text. A shorter wait puts words on screen sooner; a longer one is slightly more accurate. Each is a separate download.
+- These figures come from transcribing files, so they flatter it: judge it live, where its competition is the built-in dictation engine rather than the models above.

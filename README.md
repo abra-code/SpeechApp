@@ -55,7 +55,7 @@ The runtime pieces under `Contents/Support` and `Contents/Resources/Reference` a
 
 - `speech`, `CTranscribe.framework` (transcribe.cpp, loaded from beside the binary), the built-in model catalog `speech-catalog/`, the optional MLX helper `speech-mlx`, and the notices that travel with them - built from the [`speech`](https://github.com/abra-code/speech) repository (Apache 2.0) with its own `build.sh`.
 - `fingerprint` - from the [`replay`](https://github.com/abra-code/replay) repository (MIT), its universal release build. Speech uses it to tell a transcript it saved, untouched since, from one it must not replace.
-- `Resources/Reference/` - the published measurements and the model family pages from the `speech` repository.
+- `Resources/Reference/` - the published measurements and the model pages from the `speech` repository (`docs/models-user`). The info sheet shows `Reference/models/<model id>.md` when there is one, otherwise `Reference/models/<family>.md`, which is how Apple's two engines get a page each while a family's variants share one.
 
 The script refuses to sign a bundle whose binaries lack their notices, thins every Mach-O to arm64, deep-signs the bundle and checks that the tools launch. Run `./update_speech.sh` (see `--help` for `--skip-build`, `--without-mlx`, `--speech-repo`, `--replay-repo`, `--identity`, `--no-codesign`).
 

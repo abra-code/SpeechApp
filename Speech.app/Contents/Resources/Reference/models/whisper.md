@@ -1,34 +1,39 @@
 # Whisper large-v3-turbo
 
-> Measured on an Apple M5 with macOS 26.6.2 in September 2026, over the full
-> FLEURS test sets. Use these numbers as a guide: results on your Mac and with
-> your own recordings can differ.
+OpenAI's Whisper, covering about 99 languages - far more than anything else offered here - and the most even across the ones measured.
 
-OpenAI's Whisper large-v3-turbo, 809 million parameters, 99 languages - far more languages than any other model here, and the most even across the ones measured.
+| | |
+| --- | --- |
+| **Best for** | Languages nothing else covers, and ones the other models handle poorly |
+| **Speed** | 13 to 17 times real time, so an hour of audio takes about four minutes |
+| **Memory** | 1.1 GB, or 3.6 GB for the heavier build |
+| **Live typing** | No |
+| **Subtitles** | Yes, by sentence rather than by word |
 
-## Measurements
+## Languages
 
-Full FLEURS test sets, 2026-09-05 (MLX build 2026-09-07). Word error rate (WER) in percent, lower is better; speed in multiples of real time.
+About 99, which in practice means nearly every language with a written standard. Being on the list is not the same as being well served: quality falls off for languages with little training data, and only English, Polish, German, Spanish, French and Chinese were measured here.
 
-| row | en | pl | de | speed | memory |
-| --- | --- | --- | --- | --- | --- |
-| `ggml.whisper-large-v3-turbo@q8_0` | 4.97 | 5.81 | 5.07 | 12.7-17.1x | 1.13 GB |
-| `mlx.whisper-large-v3-turbo` | 4.92 | 5.82 | **4.54** | 8.1-11.7x | 3.61 GB |
-| `ggml.whisper-large-v3-turbo@q4_k_m` | not measured | | | | |
+## Word Error Rate (WER)
 
-Of the six languages measured it takes first place in Polish, at 5.81, and is a point or so behind the best in English and German. The MLX build matches the ggml build in English and Polish and is half a point better in German. It is about a third slower and uses three times the memory, and for German `ggml.qwen3-asr-1.7b@q8_0` does better still, at 4.06.
+Word error rate (WER) is the share of words you would have to fix, so lower is better.
 
-Polish at 5.81 means 56 percent fewer errors than Apple's 13.16.
+| | Whisper | Built into macOS |
+| --- | --- | --- |
+| English | 5.0% | 8.0% |
+| Polish | 5.8% | 13.2% |
+| German | 5.1% | 6.5% |
 
-## Speed
+It is strongest where the widely supported models are weakest. Polish, the least widely supported of the languages measured here, is the clearest case: 56 percent fewer errors than macOS makes, and better than every other model measured.
 
-Published figures on an M4 Max are 40 to 55 times real time; on the M5 it measured 13 to 17, three to four times slower. The speed held steady across full test sets, so overheating is not the cause. An hour of audio takes about four minutes, against about 30 seconds for Parakeet.
+## Choosing
 
-## Limits
+**Pick it if** your language is not covered elsewhere, or the models with shorter language lists do poorly on it.
 
-- **Segment timestamps only, no word timings.** Enough for subtitles, not for word-level alignment.
-- **No custom vocabulary.**
+**Skip it if** you transcribe English or German and care about speed - other models here are both more accurate and five to ten times faster.
 
-## When to choose it
+**Worth knowing**
 
-For Polish, and for languages no other model here supports. For English and German, other models are more accurate and much faster.
+- It is the slowest of the fast models. An hour takes about four minutes, against about thirty seconds for Parakeet.
+- Timestamps are by sentence, not by word, which is enough for subtitles but not for lining text up word by word.
+- The heavier build is a fraction better in German and needs three times the memory for it.

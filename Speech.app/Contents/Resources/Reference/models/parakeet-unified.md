@@ -1,28 +1,35 @@
 # Parakeet Unified (English)
 
-> Measured on an Apple M5 with macOS 26.6.2 in September 2026, over the full
-> FLEURS test sets. Use these numbers as a guide: results on your Mac and with
-> your own recordings can differ.
+NVIDIA's English-only Parakeet. The fastest model offered here, and the most accurate English you can get in under 1 GB of memory.
 
-NVIDIA's Parakeet Unified 0.6B, English only. The fastest model measured, and the most accurate English model that uses under 1 GB of memory.
+| | |
+| --- | --- |
+| **Best for** | English, in bulk, quickly |
+| **Speed** | 100 to 160 times real time, so an hour takes well under a minute |
+| **Memory** | 0.7 GB |
+| **Live typing** | Yes |
+| **Subtitles** | Yes |
 
-## Measurements
+## Languages
 
-Full FLEURS English (`en_us`), 2026-09-04 and 2026-09-05. Word error rate (WER) in percent, lower is better; speed in multiples of real time.
+English only. It takes no language setting at all.
 
-| row | en | speed | memory |
-| --- | --- | --- | --- |
-| `fluid.parakeet-unified@int8` | 4.90 | 159x | 0.70 GB |
-| `ggml.parakeet-unified-en-0.6b@q8_0` | 4.92 | 102x | 0.91 GB |
-| `fluid.parakeet-unified@fp16` | 4.90 | 160x | 1.28 GB |
+## Word Error Rate (WER)
 
-The two Core ML precisions give the same accuracy and speed; fp16 only uses 578 MB more memory. The ggml build matches that accuracy at about two thirds of the speed, the same result as Parakeet v3.
+Word error rate (WER) is the share of words you would have to fix, so lower is better.
 
-## When to choose it
+| | Parakeet Unified | Built into macOS |
+| --- | --- | --- |
+| Read sentences | 4.9% | 8.0% |
+| Audiobooks | 1.8% | 2.3% |
 
-English where speed matters. For the best English accuracy, `ggml.qwen3-asr-1.7b@q8_0` is more than a point better, at about a tenth of the speed and five times the memory.
+## Choosing
 
-## Limits
+**Pick it if** you transcribe English and want the best speed-to-accuracy trade here, or you have a large backlog of recordings.
 
-- **English only**, and it takes no language setting.
-- **Custom vocabulary works on the Core ML builds only**, through the small helper model `fluid.parakeet-ctc-110m`.
+**Skip it if** you need any other language - it has none - or you want the lowest possible English error count, where Qwen3-ASR is more than a point better at a tenth of the speed and five times the memory.
+
+**Worth knowing**
+
+- Two versions differ only in memory: one uses 578 MB more for identical accuracy and speed, so the lighter one is the sensible choice.
+- It is the one model here fast enough that transcription time is rarely what you wait for.
