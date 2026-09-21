@@ -1,7 +1,8 @@
 #!/bin/sh
-# 40-models.test.sh - the Models window: a card per catalog row in three sections, a download
-# through its worker with progress on the card, a failed and a stopped download, delete with its
-# alert and its refusals, the information sheet, and a Speech window taking the new model list.
+# 40-models.test.sh - the Models window: a card per transcriber row in three sections, with the
+# catalog's helper rows left out, a download through its worker with progress on the card, a failed
+# and a stopped download, delete with its alert and its refusals, the information sheet, and a
+# Speech window taking the new model list.
 # The fake speech (helpers/fake-speech.sh) answers catalog and models from a writable catalog copy;
 # the real download worker runs.
 . "${OMCTEST_LIB:?set OMCTEST_LIB, or run via: appletbuilder test}"
@@ -10,9 +11,10 @@
 us="$(printf '\037')"
 catalog_copy="$OMCTEST_WORK/catalog.json"
 
-# The ids the Models window mints at run time: eight cards, each with its parts (Show included).
+# The ids the Models window mints at run time: one card per transcriber row of the fixture - seven
+# of its eight rows, the helper being left out - each with its parts (Show included).
 card_ids=""
-for row in 1 2 3 4 5 6 7 8; do
+for row in 1 2 3 4 5 6 7; do
     for offset in 0 1 2 3 4 5 6 7; do
         card_ids="$card_ids $((2000 + row * 10 + offset))"
     done
@@ -53,43 +55,48 @@ check "the card base itself is not a row" "" "$(models_call card_row_of 2000)"
 check "the information sheet's text is not a row" "" "$(models_call card_row_of 4010)"
 check "a malformed id is not a row" "" "$(models_call card_row_of 20x4)"
 
-section "The first tick builds one card per catalog row, in three sections"
+section "The first tick builds one card per transcriber row, in three sections"
 tick
-check "eight cards were inserted" "8" "$(ui_calls 'omc_insert_element')"
-check "their ids are tracked for removal" "8" "$(/usr/bin/awk 'END { print NR }' "$(spool)/cards.ids")"
+check "seven cards were inserted" "7" "$(ui_calls 'omc_insert_element')"
+check "their ids are tracked for removal" "7" "$(/usr/bin/awk 'END { print NR }' "$(spool)/cards.ids")"
 check "the status is cleared" "" "$(ui_value "$MODELS_STATUS")"
 check "Built into macOS is shown" "1" "$(ui_visible "$MODELS_BUILTIN_BOX")"
 check "Downloaded is shown" "1" "$(ui_visible "$MODELS_INSTALLED_BOX")"
 check "Available to download is shown" "1" "$(ui_visible "$MODELS_AVAILABLE_BOX")"
 check "Apple's row is built in" "$MODELS_BUILTIN_LIST" "$(card_container 1)"
 check "a missing row is available to download" "$MODELS_AVAILABLE_LIST" "$(card_container 3)"
-check "an installed row is downloaded" "$MODELS_INSTALLED_LIST" "$(card_container 6)"
-check "a partial download is available to download" "$MODELS_AVAILABLE_LIST" "$(card_container 8)"
-check "every card is valid JSON with its id" "2010 2020 2030 2040 2050 2060 2070 2080" \
-    "$(for r in 1 2 3 4 5 6 7 8; do card_json "$r" | /usr/bin/jq -r '.id'; done | /usr/bin/tr '\n' ' ' | /usr/bin/sed 's/ $//')"
+check "an installed row is downloaded" "$MODELS_INSTALLED_LIST" "$(card_container 5)"
+check "a partial download is available to download" "$MODELS_AVAILABLE_LIST" "$(card_container 7)"
+check "every card is valid JSON with its id" "2010 2020 2030 2040 2050 2060 2070" \
+    "$(for r in 1 2 3 4 5 6 7; do card_json "$r" | /usr/bin/jq -r '.id'; done | /usr/bin/tr '\n' ' ' | /usr/bin/sed 's/ $//')"
 check "Apple's title has no engine marker" "Apple dictation (built in)" \
     "$(card_json 1 | /usr/bin/jq -r '.children[0].children[0].children[0].properties.text')"
 check "a label with quotes survives, with ggml's squared G" "Nemotron \"streaming\" (Q8_0) $ggml_mark" \
-    "$(card_json 7 | /usr/bin/jq -r '.children[0].children[0].children[0].properties.text')"
+    "$(card_json 6 | /usr/bin/jq -r '.children[0].children[0].children[0].properties.text')"
 check "the detail line counts languages and says what it transcribes" "2 languages - Recordings and live" \
     "$(card_json 3 | /usr/bin/jq -r '.children[0].children[1].properties.text')"
-check "a helper says so" "1 language - Used by other models, not for transcribing on its own" \
-    "$(card_json 5 | /usr/bin/jq -r '.children[0].children[1].properties.text')"
+# The helper rows back `--segment vad` and `--vocab`, which this app never passes, so a card for one
+# would offer a download nothing here can use. The fixture carries one to prove the filter does it.
+check "the catalog the window read has a helper row" "1" \
+    "$(/usr/bin/jq '[.rows[] | select(.role == "helper")] | length' "$(spool)/catalog.json")"
+check "and it is left out of the cards" "0" \
+    "$(/usr/bin/grep -c 'fluid.parakeet-ctc-110m' "$(spool)/cards.list")"
+check "so the rows after it keep contiguous ids" "ggml.whisper-large-v3-turbo@q8_0" "$(list_field 5 1)"
 check "built in" "Built into macOS" "$(list_field 1 9)"
 check "not downloaded, with its size" "Not downloaded - 483 MB" "$(list_field 3 9)"
-check "installed, with its size" "Installed - 886 MB" "$(list_field 6 9)"
+check "installed, with its size" "Installed - 886 MB" "$(list_field 5 9)"
 check "installed but not runnable here" "Installed - 2.5 GB. This Mac cannot run it with this version of Speech." "$(list_field 4 9)"
-check "a partial download" "Download interrupted - 300 MB of 1.1 GB kept. Download again to resume." "$(list_field 8 9)"
+check "a partial download" "Download interrupted - 300 MB of 1.1 GB kept. Download again to resume." "$(list_field 7 9)"
 check "a partial download offers Resume" "Resume" \
-    "$(card_json 8 | /usr/bin/jq -r '.children[0].children[2].children[3].properties.title')"
+    "$(card_json 7 | /usr/bin/jq -r '.children[0].children[2].children[3].properties.title')"
 check "a missing row can be downloaded, not deleted" "1 0" "$(list_field 3 10) $(list_field 3 11)"
-check "a partial row can be resumed and deleted" "1 1" "$(list_field 8 10) $(list_field 8 11)"
-check "an installed row can be deleted, not downloaded" "0 1" "$(list_field 6 10) $(list_field 6 11)"
+check "a partial row can be resumed and deleted" "1 1" "$(list_field 7 10) $(list_field 7 11)"
+check "an installed row can be deleted, not downloaded" "0 1" "$(list_field 5 10) $(list_field 5 11)"
 check "an installed row offers Show as a folder icon, then the trash" \
-    "2067 folder null speech.models.show null 2065 trash null speech.models.delete false" \
-    "$(card_json 6 | /usr/bin/jq -r '[.children[0].children[2].children[2:][] | .id, .properties.systemImage, .properties.title, .properties.actionID, .properties.hidden] | map(tostring) | join(" ")')"
+    "2057 folder null speech.models.show null 2055 trash null speech.models.delete false" \
+    "$(card_json 5 | /usr/bin/jq -r '[.children[0].children[2].children[2:][] | .id, .properties.systemImage, .properties.title, .properties.actionID, .properties.hidden] | map(tostring) | join(" ")')"
 check "and has no Download button" "0" \
-    "$(card_json 6 | /usr/bin/jq '[.. | objects | select(.id? == 2064)] | length')"
+    "$(card_json 5 | /usr/bin/jq '[.. | objects | select(.id? == 2054)] | length')"
 check "a missing row offers Download last, not Show" "2034 Download" \
     "$(card_json 3 | /usr/bin/jq -r '.children[0].children[2].children[3] | [.id, .properties.title] | map(tostring) | join(" ")')"
 check "Apple's row can be neither" "0 0" "$(list_field 1 10) $(list_field 1 11)"
@@ -107,7 +114,7 @@ check "its state says to delete it first, with download off and delete on" \
 
 section "A tick with nothing changed touches no card"
 tick
-check "no more cards were inserted" "8" "$(ui_calls 'omc_insert_element')"
+check "no more cards were inserted" "7" "$(ui_calls 'omc_insert_element')"
 check "none were removed" "0" "$(ui_calls 'omc_remove_element')"
 
 # ------------------------------------------------------------------------------------------------
@@ -123,8 +130,8 @@ check "the worker finished and removed its directory" "yes" \
 check "speech was asked to download the row" "1" "$(download_lines fluid.parakeet-v3@int8)"
 check_exists "every window was told the models changed" "$SPEECH_APP_SUPPORT/models.changed"
 tick
-check "the old cards were removed" "8" "$(ui_calls 'omc_remove_element')"
-check "and new ones inserted" "16" "$(ui_calls 'omc_insert_element')"
+check "the old cards were removed" "7" "$(ui_calls 'omc_remove_element')"
+check "and new ones inserted" "14" "$(ui_calls 'omc_insert_element')"
 check "the row is now downloaded" "$MODELS_INSTALLED_LIST" "$(card_container 3)"
 check "with its size" "Installed - 483 MB" "$(list_field 3 9)"
 check "its Download button became the Show icon" "2037 folder" \
@@ -156,21 +163,21 @@ tick
 FAKE_SPEECH_DOWNLOAD=hang
 export FAKE_SPEECH_DOWNLOAD
 dl="$(download_dir ggml.canary-1b-v2@q8_0)"
-omc_trigger 2084
+omc_trigger 2074
 omc_run speech.models.download
 check "the fake reported progress" "yes" \
     "$(omc_wait_for "[ -s \"$dl/events.jsonl\" ]" && echo yes || echo no)"
 tick
-check "the card shows the progress" "Downloading 120 MB of 480 MB (25%)" "$(ui_value 2083)"
-check "Resume is disabled" "0" "$(ui_enabled 2084)"
-check "delete is disabled" "0" "$(ui_enabled 2085)"
+check "the card shows the progress" "Downloading 120 MB of 480 MB (25%)" "$(ui_value 2073)"
+check "Resume is disabled" "0" "$(ui_enabled 2074)"
+check "delete is disabled" "0" "$(ui_enabled 2075)"
 tick
 check "an unchanged tick writes the progress once" "1" "$(ui_calls 'Downloading 120 MB of 480 MB (25%)')"
-omc_trigger 2084
+omc_trigger 2074
 omc_run speech.models.download
 check "a second click starts no second download" "1" "$(download_lines ggml.canary-1b-v2@q8_0)"
 alerts_before="$(ui_calls omc_present_alert)"
-omc_trigger 2085
+omc_trigger 2075
 omc_run speech.models.delete
 check "delete says to wait" "Canary 1B v2 (Q8_0) is downloading. Wait for the download to end, then delete it." "$(ui_value "$MODELS_STATUS")"
 check "and asks nothing" "$alerts_before" "$(ui_calls omc_present_alert)"
@@ -182,9 +189,9 @@ check "no fake speech is left running" "0" "$(/usr/bin/pgrep -f "$SPEECH_BIN" 2>
 # The catalog did not change (the fake got no further), so no card is rebuilt: the card itself has
 # to get its catalog state back.
 tick
-check "the card gets its catalog state back" "Download interrupted - 300 MB of 1.1 GB kept. Download again to resume." "$(ui_value 2083)"
-check "Resume is offered again" "1" "$(ui_enabled 2084)"
-check "and so is delete" "1" "$(ui_enabled 2085)"
+check "the card gets its catalog state back" "Download interrupted - 300 MB of 1.1 GB kept. Download again to resume." "$(ui_value 2073)"
+check "Resume is offered again" "1" "$(ui_enabled 2074)"
+check "and so is delete" "1" "$(ui_enabled 2075)"
 unset FAKE_SPEECH_DOWNLOAD
 reap_fake
 
@@ -212,7 +219,7 @@ reap_fake
 section "Delete asks first, then deletes, and the card moves"
 open_models_window
 tick
-omc_trigger 2065
+omc_trigger 2055
 omc_run speech.models.delete
 check "the alert names the model" "Delete Whisper large-v3-turbo (Q8_0)?" "$(ui_alert_title)"
 check "and the space" "This removes 886 MB from this Mac. You can download it again later." "$(ui_alert_message)"
@@ -225,7 +232,7 @@ check "speech deleted the row" "1" "$(/bin/cat "$FAKE_SPEECH_LOG" 2>/dev/null | 
 check "the status says so" "Deleted Whisper large-v3-turbo (Q8_0)." "$(ui_value "$MODELS_STATUS")"
 check_absent "the pending model is consumed" "$(spool)/pending.delete"
 tick
-check "the row is available to download again" "$MODELS_AVAILABLE_LIST" "$(card_container 6)"
+check "the row is available to download again" "$MODELS_AVAILABLE_LIST" "$(card_container 5)"
 check "the status survives the tick" "Deleted Whisper large-v3-turbo (Q8_0)." "$(ui_value "$MODELS_STATUS")"
 
 section "A confirm with nothing pending does nothing"
@@ -244,18 +251,18 @@ printf 'run-1' > "$other/live/current"
 printf 'running' > "$other/live/run-1/state"
 printf 'ggml.whisper-large-v3-turbo@q8_0' > "$other/live/run-1/model"
 alerts_before="$(ui_calls omc_present_alert)"
-omc_trigger 2075
+omc_trigger 2065
 omc_run speech.models.delete
 check "a batch using the model refuses" "Nemotron \"streaming\" (Q8_0) is transcribing in a Speech window. Stop it there, then delete it." "$(ui_value "$MODELS_STATUS")"
 check "without asking" "$alerts_before" "$(ui_calls omc_present_alert)"
-omc_trigger 2065
+omc_trigger 2055
 omc_run speech.models.delete
 check "a live run using the model refuses" "Whisper large-v3-turbo (Q8_0) is transcribing in a Speech window. Stop it there, then delete it." "$(ui_value "$MODELS_STATUS")"
 printf 'ggml.whisper-large-v3-turbo@q8_0' > "$(spool)/pending.delete"
 omc_run speech.models.delete.confirm
 check "a confirm that finds the model in use refuses too" "0" "$(/bin/cat "$FAKE_SPEECH_LOG" 2>/dev/null | /usr/bin/grep -c 'models delete')"
 printf 'done' > "$other/live/run-1/state"
-omc_trigger 2065
+omc_trigger 2055
 omc_run speech.models.delete
 check "a finished run no longer refuses" "Delete Whisper large-v3-turbo (Q8_0)?" "$(ui_alert_title)"
 /bin/rm -rf "$other"
@@ -265,30 +272,39 @@ open_models_window
 tick
 FAKE_SPEECH_DELETE=fail
 export FAKE_SPEECH_DELETE
-printf 'fluid.parakeet-ctc-110m' > "$(spool)/pending.delete"
+printf 'mlx.qwen3-asr-1.7b@8bit' > "$(spool)/pending.delete"
 omc_run speech.models.delete.confirm
 check_status "confirm reports the failure" 1
-check "the status carries speech's reason" "Could not delete Parakeet CTC 110M (vocabulary spotter): error: cannot remove the model files: permission denied" "$(ui_value "$MODELS_STATUS")"
+check "the status carries speech's reason" "Could not delete Qwen3-ASR 1.7B (MLX, 8-bit): error: cannot remove the model files: permission denied" "$(ui_value "$MODELS_STATUS")"
 check_absent "no window is told the models changed" "$SPEECH_APP_SUPPORT/models.changed"
+# A row the window does not list has no card to read a label or a delete flag from, so a confirm
+# naming one does nothing at all rather than deleting behind the user's back.
+printf 'fluid.parakeet-ctc-110m' > "$(spool)/pending.delete"
+omc_run speech.models.delete.confirm
+check_status "a confirm naming an unlisted helper exits cleanly" 0
+check "and speech was not asked to delete it" "0" \
+    "$(/bin/cat "$FAKE_SPEECH_LOG" 2>/dev/null | /usr/bin/grep -c -- '--json models delete fluid.parakeet-ctc-110m')"
+check_absent "the pending model is consumed either way" "$(spool)/pending.delete"
 unset FAKE_SPEECH_DELETE
 
 # ------------------------------------------------------------------------------------------------
 section "The information sheet shows the catalog's details and the family's page"
 open_models_window
 tick
-omc_trigger 2066
+omc_trigger 2056
 omc_run speech.models.info
 check "the sheet is presented" "1" "$(ui_calls 'omc_present_modal speech.model.info')"
 info="$(ui_value "$MODEL_INFO_TEXT")"
 check "as Markdown" "markdown" "$(ui_content_type "$MODEL_INFO_TEXT")"
 check_contains() { case "$3" in *"$2"*) check "$1" yes yes ;; *) check "$1" "$2" "$3" ;; esac; }
-check_contains "the title" "### Whisper large-v3-turbo (Q8_0)" "$info"
+check_contains "the title, with its underscore escaped so Markdown leaves it alone" "### Whisper large-v3-turbo (Q8\\_0)" "$info"
 check_contains "the engine" "- **Engine:** transcribe.cpp (ggml)" "$info"
 check_contains "the status" "- **Status:** Installed - 886 MB" "$info"
 check_contains "the languages by name" "- **Languages:** English, Polish" "$info"
 check_contains "the parameters" "- **Parameters:** 809 million" "$info"
 check_contains "the source as a link" "- **Source:** [ggml-org/whisper-large-v3-turbo](https://huggingface.co/ggml-org/whisper-large-v3-turbo)" "$info"
-check_contains "where its files are" "- **Location:** /nonexistent/Models/ggml.whisper-large-v3-turbo@q8_0" "$info"
+check_contains "the precision as a code span, so q8_0 keeps its underscore" "- **Precision:** \`q8_0\`" "$info"
+check_contains "where its files are" "- **Location:** \`/nonexistent/Models/ggml.whisper-large-v3-turbo@q8_0\`" "$info"
 check_contains "the family page" "$(/usr/bin/head -1 "$OMCTEST_APP/Contents/Resources/Reference/models/whisper.md")" "$info"
 omc_trigger 2016
 omc_run speech.models.info
@@ -307,12 +323,12 @@ models_root="$OMCTEST_WORK/Models"
 FAKE_SPEECH_MODELS_DIR="$models_root"
 export FAKE_SPEECH_MODELS_DIR
 /bin/rm -f "$FAKE_OPEN_LOG"
-omc_trigger 2067
+omc_trigger 2057
 omc_run speech.models.show
 check_status "show exits cleanly" 0
 check "the Finder selects the model's folder" "-R $models_root/ggml.whisper-large-v3-turbo@q8_0" "$(/bin/cat "$FAKE_OPEN_LOG" 2>/dev/null)"
 /bin/rm -rf "$models_root/ggml.whisper-large-v3-turbo@q8_0" "$FAKE_OPEN_LOG"
-omc_trigger 2067
+omc_trigger 2057
 omc_run speech.models.show
 check "a folder that is gone opens nothing" "" "$(/bin/cat "$FAKE_OPEN_LOG" 2>/dev/null)"
 check "and the status says so" "The files of Whisper large-v3-turbo (Q8_0) are not on this Mac." "$(ui_value "$MODELS_STATUS")"

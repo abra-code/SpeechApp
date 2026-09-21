@@ -11,9 +11,10 @@ us="$(printf '\037')"
 catalog_copy="$OMCTEST_WORK/catalog.json"
 adding_dir="$SPEECH_APP_SUPPORT/Adding"
 
-# The ids the Models window mints at run time: nine cards once a model is added, each with its parts.
+# The ids the Models window mints at run time: eight cards once a model is added - the fixture's
+# seven transcriber rows, its helper row being left out, and the new one - each with its parts.
 card_ids=""
-for row in 1 2 3 4 5 6 7 8 9; do
+for row in 1 2 3 4 5 6 7 8; do
     for offset in 0 1 2 3 4 5 6; do
         card_ids="$card_ids $((2000 + row * 10 + offset))"
     done
@@ -90,8 +91,8 @@ check "speech was asked for the repository and the quantization" "1" \
     "$(/bin/cat "$FAKE_SPEECH_LOG" 2>/dev/null | /usr/bin/grep -c -- '^--json models add someone/Test-ASR-gguf --quant Q4_K_M$')"
 check_exists "every window was told the models changed" "$SPEECH_APP_SUPPORT/models.changed"
 tick
-check "the new model has a card" "9" "$(row_count)"
-check "under Downloaded" "$MODELS_INSTALLED_LIST" "$(card_container 9)"
+check "the new model has a card" "8" "$(row_count)"
+check "under Downloaded" "$MODELS_INSTALLED_LIST" "$(card_container 8)"
 check "the status names what was added" "Added test-asr (Q4_K_M) from someone/Test-ASR-gguf. It is listed under Downloaded." "$(ui_value "$MODELS_STATUS")"
 check "Add Model... is offered again" "1" "$(ui_enabled "$MODELS_ADD_BTN")"
 tick
@@ -102,7 +103,7 @@ omc_run speech.models.cancel
 omc_run speech.models.init
 tick
 check "its status is clear" "" "$(ui_value "$MODELS_STATUS")"
-check "and it lists the added model" "9" "$(row_count)"
+check "and it lists the added model" "8" "$(row_count)"
 
 # ------------------------------------------------------------------------------------------------
 section "A failed add gives speech's reason in the app's words"

@@ -441,6 +441,22 @@ model_path() {   # $1 = model id
         | "$jq" -r 'select(.type == "model.entry") | .path // empty' 2>/dev/null
 }
 
+# The sheet's Markdown reader takes *, _, [ and ` as syntax wherever they fall, including inside a
+# word: a label like "Whisper large-v3-turbo (Q4_K_M)" comes out as "Q4KM" with an italic K. This
+# escapes them for a value that belongs in the prose. A value that is a literal - the id, the
+# precision, a path - goes in a code span instead, which reads better and needs no escaping. The
+# tilde is in the list because a pair of them is this reader's strikethrough.
+md_escape() {   # $1 = text
+    local _out="${1//\\/\\\\}"
+    _out="${_out//\*/\\*}"
+    _out="${_out//_/\\_}"
+    _out="${_out//\[/\\[}"
+    _out="${_out//\]/\\]}"
+    _out="${_out//\`/\\\`}"
+    _out="${_out//\~/\\~}"
+    printf '%s' "$_out"
+}
+
 # A model's information as Markdown: what the catalog says about the row, where its files are, and
 # the model family's page from Resources/Reference/models, which holds the reference measurements.
 model_info_markdown() {   # $1 = spool, $2 = row
@@ -448,7 +464,6 @@ model_info_markdown() {   # $1 = spool, $2 = row
     local _label="$(card_field "$1" "$2" 3)"
     local _engine="$(card_field "$1" "$2" 4)"
     local _family="$(card_field "$1" "$2" 5)"
-    local _role="$(card_field "$1" "$2" 6)"
     local _state="$(card_field "$1" "$2" 7)"
     local _state_text="$(card_field "$1" "$2" 9)"
     local _source="$(card_field "$1" "$2" 13)"
@@ -465,21 +480,19 @@ model_info_markdown() {   # $1 = spool, $2 = row
         mlx)   _engine_name="MLX" ;;
         *)     _engine_name="$_engine" ;;
     esac
-    if [ "$_role" = helper ]; then
-        _use="Used by other models, not for transcribing on its own"
-    else
-        case ",$_modes," in
-            *,live,*) _use="Recordings and live" ;;
-            *) _use="Recordings only" ;;
-        esac
-    fi
+    case ",$_modes," in
+        *,live,*) _use="Recordings and live" ;;
+        *) _use="Recordings only" ;;
+    esac
 
-    printf '### %s\n\n' "$_label"
+    printf '### %s\n\n' "$(md_escape "$_label")"
     printf -- '- **Id:** `%s`\n' "$_id"
-    printf -- '- **Engine:** %s\n' "$_engine_name"
-    printf -- '- **Status:** %s\n' "$_state_text"
+    printf -- '- **Engine:** %s\n' "$(md_escape "$_engine_name")"
+    printf -- '- **Status:** %s\n' "$(md_escape "$_state_text")"
     printf -- '- **Transcribes:** %s\n' "$_use"
-    [ -n "$_precision" ] && printf -- '- **Precision:** %s\n' "$_precision"
+    # A code span, as the Id is: a precision like q4_k_m is a literal, and Markdown would otherwise
+    # read the pair of underscores as emphasis and draw "q4km" with an italic k.
+    [ -n "$_precision" ] && printf -- '- **Precision:** `%s`\n' "$_precision"
     [ -n "$_params" ] && printf -- '- **Parameters:** %s million\n' "$_params"
     if [ -n "$_languages" ]; then
         local _names=""
@@ -493,13 +506,15 @@ model_info_markdown() {   # $1 = spool, $2 = row
         done
         printf -- '- **Languages:** %s\n' "$_names"
     fi
-    [ -n "$_source" ] && printf -- '- **Source:** [%s](https://huggingface.co/%s)\n' "$_source" "$_source"
+    # The link's text is prose, the URL is not: a repository name can carry an underscore.
+    [ -n "$_source" ] && printf -- '- **Source:** [%s](https://huggingface.co/%s)\n' "$(md_escape "$_source")" "$_source"
     if [ "$_state" != system_managed ]; then
         local _path="$(model_path "$_id")"
+        # Also a code span: a folder name carries the model id, which can hold the same underscores.
         if [ -n "$_path" ] && [ "$_state" = installed ]; then
-            printf -- '- **Location:** %s\n' "$_path"
+            printf -- '- **Location:** `%s`\n' "$_path"
         elif [ -n "$_path" ]; then
-            printf -- '- **Downloads to:** %s\n' "$_path"
+            printf -- '- **Downloads to:** `%s`\n' "$_path"
         fi
     fi
 

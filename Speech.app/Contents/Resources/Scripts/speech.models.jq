@@ -1,7 +1,7 @@
-# speech.models.jq - the Models window's cards, from `speech --json catalog`. Every row is listed,
-# helpers included, in the catalog's own order, which the catalog computes so that no ranking can
-# be read into it. Two kinds of line, fields joined by the unit separator (U+001F), which neither a
-# cleaned field nor compact JSON can contain:
+# speech.models.jq - the Models window's cards, from `speech --json catalog`. Every transcriber row
+# is listed, in the catalog's own order, which the catalog computes so that no ranking can be read
+# into it. Two kinds of line, fields joined by the unit separator (U+001F), which neither a cleaned
+# field nor compact JSON can contain:
 #
 #   L  one row, for the handlers (cards.list, without the L): 1 id, 2 title, 3 label, 4 engine,
 #      5 family, 6 role, 7 state, 8 available (1/0), 9 state text, 10 can download (1/0),
@@ -39,8 +39,7 @@ def languages_text:
     | if $n == 0 then "Languages not listed" elif $n == 1 then "1 language" else "\($n) languages" end;
 
 def use_text:
-    if .role == "helper" then "Used by other models, not for transcribing on its own"
-    elif ((.modes // []) | index("live")) != null then "Recordings and live"
+    if ((.modes // []) | index("live")) != null then "Recordings and live"
     else "Recordings only" end;
 
 # speech says why a row cannot run here - for Apple's rows on macOS 15, that they need macOS 26.
@@ -120,7 +119,12 @@ def card($card):
       ]
     };
 
-.rows | to_entries[] | (.key + 1) as $row | .value | ($base + $row * 10) as $card
+# Helper rows are left out. `fluid.silero-vad` and `fluid.parakeet-ctc-110m` are dependencies of
+# `speech` flags this app does not pass - `--segment vad` and `--vocab` - so a card for one offers a
+# download that nothing in this app can use. They stay in `speech catalog` for command line use, and
+# the filter runs before the rows are numbered, so the card ids stay contiguous.
+.rows | map(select(.role != "helper")) | to_entries[]
+| (.key + 1) as $row | .value | ($base + $row * 10) as $card
 | ( ["L", .id, ((.label // .id) + marker), (.label // .id), .engine, .family, .role, .state,
       (.available == true | flag), state_text, (can_download | flag), (can_delete | flag),
       (if on_disk > 0 then (on_disk | bytes) else "" end), .source, .precision, .params_m,
