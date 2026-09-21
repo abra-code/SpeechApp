@@ -363,7 +363,7 @@ check "no bracketed provenance is jammed into the line" "" \
     "$(printf '%s' "$recordings_line" | /usr/bin/grep -c '\[' | /usr/bin/sed 's/^0$//')"
 check "the faster pick is on its own line" "1" \
     "$(printf '%s' "$recordings_line" | /usr/bin/grep -c '^\*\*Faster:\*\*')"
-check_contains "the other corpus is reported as another answer" "On other recordings:" "$recordings_line"
+check_contains "the other corpus is reported as another answer" "Clear Recordings:" "$recordings_line"
 check_contains "live names the row measured on continuous speech" "Nemotron" "$live_line"
 check_contains "and when its text first appears" "first text after 0.91 s" "$live_line"
 
