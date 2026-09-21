@@ -64,7 +64,7 @@
 		<true/>
 	</dict>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Speech sends AppleEvents to other apps to provide functionality unique to this applet.</string>
+	<string>Speech uses automation for certain file operations.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Speech listens to the microphone only while you are recording, to transcribe what you say on this Mac.</string>
 	<key>NSPrincipalClass</key>
