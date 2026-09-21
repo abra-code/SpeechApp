@@ -1,6 +1,6 @@
 {
   "type": "VStack",
-  "properties": { "spacing": 12, "padding": 16, "frame": { "minWidth": 520, "idealWidth": 600, "minHeight": 360, "idealHeight": 560 } },
+  "properties": { "spacing": 12, "padding": 16, "frame": { "minWidth": 700, "idealWidth": 700, "minHeight": 360, "idealHeight": 560 } },
   "children": [
     {
       "type": "ScrollView",
