@@ -638,7 +638,8 @@
                               "systemImage": "minus",
                               "buttonStyle": "borderless",
                               "disabled": true,
-                              "actionID": "speech.benchmark.remove"
+                              "actionID": "speech.benchmark.remove",
+                              "help": "Take the selected measurement out of the queue"
                             }
                           },
                           { "type": "Spacer" }
