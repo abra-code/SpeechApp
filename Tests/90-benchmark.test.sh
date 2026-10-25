@@ -90,14 +90,13 @@ check "the models that transcribe Polish files, whatever region they spell" \
     "apple.dictation ggml.whisper-large-v3-turbo@q8_0 ggml.nemotron-3.5-asr-streaming-0.6b@q8_0" \
     "$(/usr/bin/cut -f1 "$(bench_pane)/models.tsv" | /usr/bin/tr '\n' ' ' | /usr/bin/sed 's/ $//')"
 check "the first is selected" "apple.dictation" "$(/bin/cat "$(bench_pane)/model.id" 2>/dev/null)"
-check "three reference rows for Polish" "3" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
+check "two reference rows for Polish, one per model" "2" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
 check "the lowest error rate first, with the engine's mark" \
     "$ggml_nemotron	9.50%	4.00%	110.4x	1.3 GB	758 (2 skipped)	Reference, Reference Mac, macOS 26.6.2, 2026-09-09	" \
     "$(table_row "$BENCH_RESULTS_TABLE" 1)"
-check "Apple's row for this macOS has no note" "" "$(table_cell "$BENCH_RESULTS_TABLE" 2 8)"
-check "Apple's row for another macOS says so" \
-    "Measured on macOS 25.1. Apple's engines change with macOS, and this Mac runs 26.6.2." \
-    "$(table_cell "$BENCH_RESULTS_TABLE" 3 8)"
+check "Apple's row is the one for this macOS" \
+    "Reference, Reference Mac, macOS 26.6.2, 2026-09-08" "$(table_cell "$BENCH_RESULTS_TABLE" 2 7)"
+check "and has no note" "" "$(table_cell "$BENCH_RESULTS_TABLE" 2 8)"
 check "Add waits for the corpus" "0" "$(ui_enabled "$BENCH_ADD_BTN")"
 
 section "A corpus that arrives on disk is noticed on the next tick"
@@ -174,7 +173,7 @@ tick
 check "this Mac's result is listed above the reference" \
     "$dictation	8.33%	5.12%	42.4x	480 MB	3	Apple M5, macOS 26.6.2, 2026-01-01	" \
     "$(table_row "$BENCH_RESULTS_TABLE" 1)"
-check "the reference rows follow" "4" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
+check "the reference rows follow" "3" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
 check "the queue table is empty" "0" "$(ui_row_count "$BENCH_QUEUE_TABLE")"
 check "Run is disabled again" "0" "$(ui_enabled "$BENCH_RUN_BTN")"
 
@@ -200,7 +199,7 @@ failed_note=""
 check "the model's newest measurement is the failure, above the reference" \
     "$dictation	Failed	-	-	-	-	$this_chip, macOS $this_macos, $today	no rows could be scored, so there is no measurement: cannot decode the recording$failed_note" \
     "$(table_row "$BENCH_RESULTS_TABLE" 1)"
-check "the older result is not listed twice" "4" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
+check "the older result is not listed twice" "3" "$(ui_row_count "$BENCH_RESULTS_TABLE")"
 choose "$BENCH_SAMPLE_PICKER" 1 speech.benchmark.sample.changed
 check "the quick sample's result is unaffected" "8.33%" "$(table_cell "$BENCH_RESULTS_TABLE" 1 2)"
 unset FAKE_SPEECH_EVAL
@@ -333,5 +332,38 @@ bench_call setup_benchmark "$(spool)"
 end_bench_quiet
 check "the fifth corpus, not the first" "pl_pl" "$(/bin/cat "$(bench_pane)/corpus.id" 2>/dev/null)"
 check "and the picker is on it" "5" "$(ui_value "$BENCH_CORPUS_PICKER")"
+
+# ------------------------------------------------------------------------------------------------
+# Checked against a file written here, so each case stands alone: speech's reference keeps every
+# measurement it published, and a model measured again on a newer macOS has a row for each.
+section "The reference shows one row per model: the newest macOS, or this Mac's for Apple"
+printf '# machine: Reference Mac\nmodel\tcorpus\tmacos\twer_pct\tdate\n' > "$OMCTEST_WORK/reference.tsv"
+printf 'ggml.a\ten_us\t26.9\t5.00\t2026-11-01T00:00:00Z\n' >> "$OMCTEST_WORK/reference.tsv"
+printf 'ggml.a\ten_us\t26.10\t4.00\t2026-10-01T00:00:00Z\n' >> "$OMCTEST_WORK/reference.tsv"
+printf 'ggml.b\ten_us\t27.0.1\t6.00\t2026-10-01T00:00:00Z\n' >> "$OMCTEST_WORK/reference.tsv"
+printf 'ggml.b\ten_us\t27.0.1\t6.50\t2026-10-02T00:00:00Z\n' >> "$OMCTEST_WORK/reference.tsv"
+printf 'apple.dictation\ten_us\t27.0.0\t13.00\t2026-09-19T00:00:00Z\n' >> "$OMCTEST_WORK/reference.tsv"
+printf 'apple.dictation\ten_us\t27.0.1\t12.00\t2026-10-22T00:00:00Z\n' >> "$OMCTEST_WORK/reference.tsv"
+reference_rows() {   # $1 = this Mac's macOS; prints model, WER and the Measured column
+    /usr/bin/awk -F'\t' -v corpus=en_us -v sample=all -v macos="$1" \
+        -f "$OMCTEST_APP/Contents/Resources/Scripts/speech.benchmark.results.awk" \
+        role=labels /dev/null role=results /dev/null role=reference "$OMCTEST_WORK/reference.tsv" \
+        | LC_ALL=C /usr/bin/sort -t "$(printf '\t')" -k1,1 | /usr/bin/cut -f2,3,8,9 | /usr/bin/tr '\t' '|'
+}
+rows_27_0_0="$(reference_rows 27.0.0)"
+check "one row per model" "3" "$(printf '%s\n' "$rows_27_0_0" | /usr/bin/awk 'END { print NR }')"
+check_contains "the newest macOS wins, compared as numbers: 26.10 after 26.9" \
+    "ggml.a|4.00%|Reference, Reference Mac, macOS 26.10, 2026-10-01|" "$rows_27_0_0"
+check_contains "on the same macOS the newer date wins" \
+    "ggml.b|6.50%|Reference, Reference Mac, macOS 27.0.1, 2026-10-02|" "$rows_27_0_0"
+check_contains "Apple's row for this Mac's macOS wins over a newer one" \
+    "apple.dictation|13.00%|Reference, Reference Mac, macOS 27.0.0, 2026-09-19|" "$rows_27_0_0"
+check_contains "without one, Apple's newest, with the note" \
+    "apple.dictation|12.00%|Reference, Reference Mac, macOS 27.0.1, 2026-10-22|Measured on macOS 27.0.1. Apple's engines change with macOS, and this Mac runs 26.9." \
+    "$(reference_rows 26.9)"
+printf 'apple.transcriber\ten_us\t26.10\t5.00\t2026-11-01T00:00:00Z\n' >> "$OMCTEST_WORK/reference.tsv"
+printf 'apple.transcriber\ten_us\t26.1\t7.00\t2026-01-01T00:00:00Z\n' >> "$OMCTEST_WORK/reference.tsv"
+check_contains "this Mac's macOS is matched as text: 26.1 is not 26.10" \
+    "apple.transcriber|7.00%|Reference, Reference Mac, macOS 26.1, 2026-01-01|" "$(reference_rows 26.1)"
 
 omctest_end

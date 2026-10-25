@@ -17,6 +17,11 @@
 # counts, so measuring a model again replaces its row. The reference is the full set of the corpus
 # whichever sample size is chosen; the Recordings column shows how many recordings each row scored.
 #
+# The reference keeps every measurement speech published, so a model measured again on a newer
+# macOS has a row for each. Only one per model is shown: the newest macOS, then the newest date.
+# Apple's rows are the exception, because Apple's engines change with macOS: the row measured on
+# this Mac's macOS wins when there is one, and otherwise the newest, with a note saying so.
+#
 # Columns are found by their header names, not their positions, so a column speech adds to its
 # measurements later moves nothing. Lines starting with # are comments; the reference's
 # "machine:" comment names the Mac it was measured on.
@@ -50,14 +55,41 @@ function when(mac, date) {
     return (mac == "" ? "" : ", macOS " mac) (date == "" ? "" : ", " substr(date, 1, 10))
 }
 
-# Apple's engines are part of macOS, so their accuracy moves with it.
+# Apple's engines are part of macOS, so their accuracy moves with it. Versions are compared as
+# text (the "" appended): a field and a -v value that look like numbers compare as numbers, which
+# would make 26.1 the same macOS as 26.10.
 function apple_note(id, mac) {
-    if (id ~ /^apple\./ && macos != "" && mac != "" && mac != macos)
+    if (id ~ /^apple\./ && macos != "" && mac != "" && mac "" != macos "")
         return "Measured on macOS " mac ". Apple's engines change with macOS, and this Mac runs " macos "."
     return ""
 }
 
 function joined(a, b) { return a == "" ? b : (b == "" ? a : a " " b) }
+
+# 1 when macOS version a is newer than b, comparing numbers, so 26.10 is newer than 26.9.
+function newer_macos(a, b,    pa, pb, na, nb, i, x, y) {
+    na = split(a, pa, ".")
+    nb = split(b, pb, ".")
+    for (i = 1; i <= na || i <= nb; i++) {
+        x = (i <= na) ? pa[i] + 0 : 0
+        y = (i <= nb) ? pb[i] + 0 : 0
+        if (x != y) return x > y
+    }
+    return 0
+}
+
+# 1 when a reference row for id, measured on mac at date, should replace the one kept so far.
+function better_reference(id, mac, date,    here, kept_here) {
+    if (!(id in ref_row)) return 1
+    if (id ~ /^apple\./ && macos != "") {
+        here = (mac "" == macos "")
+        kept_here = (ref_mac[id] "" == macos "")
+        if (here != kept_here) return here
+    }
+    if (newer_macos(mac, ref_mac[id])) return 1
+    if (newer_macos(ref_mac[id], mac)) return 0
+    return date > ref_date[id]
+}
 
 function sort_key(group, wer, id) { return sprintf("%d%012.4f%s", group, wer == "" ? 0 : wer, id) }
 
@@ -100,9 +132,16 @@ role == "reference" {
     id = v("model")
     if (id == "") next
     mac = v("macos")
-    print sort_key(3, v("wer_pct"), id) "\t" name_of(id) "\t" pct(v("wer_pct")) "\t" pct(v("cer_pct")) "\t" \
+    date = v("date")
+    if (!better_reference(id, mac, date)) next
+    ref_mac[id] = mac
+    ref_date[id] = date
+    ref_row[id] = sort_key(3, v("wer_pct"), id) "\t" name_of(id) "\t" pct(v("wer_pct")) "\t" pct(v("cer_pct")) "\t" \
         speed(v("rtfx")) "\t" memory(v("peak_memory_bytes")) "\t" recordings(v("rows"), v("skipped")) "\t" \
-        "Reference" (refmachine == "" ? "" : ", " refmachine) when(mac, v("date")) "\t" apple_note(id, mac)
+        "Reference" (refmachine == "" ? "" : ", " refmachine) when(mac, date) "\t" apple_note(id, mac)
 }
 
-END { for (id in mine) print mine[id] }
+END {
+    for (id in mine) print mine[id]
+    for (id in ref_row) print ref_row[id]
+}
